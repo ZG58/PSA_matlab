@@ -13,7 +13,7 @@ type = 'ProcessEvaluation' ;
 
 for i = 12:12
     
-% load parameters
+% 加载参数
 IsothermParams     = IsothermPar(i, :) ;
 material_propertry = SimParam(i, :)    ;
 
@@ -21,28 +21,27 @@ material    = {}                 ;
 material{1} = material_propertry ;
 material{2} = IsothermParams     ;
 
-Function = @(x) PSACycleSimulation( x, material, type, N ) ; % Function to simulate the PSA cycle
+Function = @(x) PSACycleSimulation( x, material, type, N ) ; % 用于模拟PSA循环的函数
 
-options         = nsgaopt() ;                            % create default options structure
-options.popsize = 40        ;                            % populaion size
-options.maxGen  = 60        ;                            % max generation
+options         = nsgaopt() ;                            % 创建默认选项结构体
+options.popsize = 40        ;                            % 种群大小
+options.maxGen  = 60        ;                            % 最大代数
 
 options.vartype    = [1, 1, 1, 1, 1, 1]         ;
 options.outputfile = 'UTSA-16_Process.txt' ;
 
-options.numObj  = 2 ;                                    % number of objectives
-options.numVar  = 6 ;                                    % number of design variables
-options.numCons = 3 ;                                    % number of constraints
-options.lb      = [1e5,  10, 0.01, 0.1, 0, 1e4]   ;               % lower bound of x
-options.ub      = [10e5, 1000, 0.99, 2, 1, 5e4]  ;               % upper bound of x
-options.nameObj = {'-purity','recovery'} ;               % the objective names are showed in GUI window.
-options.objfun  = Function               ;               % objective function handle
+options.numObj  = 2 ;                                    % 目标数量
+options.numVar  = 6 ;                                    % 设计变量数量
+options.numCons = 3 ;                                    % 约束数量
+options.lb      = [1e5,  10, 0.01, 0.1, 0, 1e4]   ;               % x的下界
+options.ub      = [10e5, 1000, 0.99, 2, 1, 5e4]  ;               % x的上界
+options.nameObj = {'-purity','recovery'} ;               % 目标名称会显示在GUI窗口中。
+options.objfun  = Function               ;               % 目标函数句柄
 
-options.useParallel = 'yes' ;                            % parallel computation is non-essential here
-options.poolsize     = 8   ;                             % number of worker processes
+options.useParallel = 'yes' ;                            % 此处并行计算不是必需的
+options.poolsize     = 8   ;                             % 工作进程数
 
-result = nsga2(options)     ;                            % begin the optimization!
+result = nsga2(options)     ;                            % 开始优化！
 
 
 end
-

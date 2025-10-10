@@ -1,25 +1,24 @@
 function flux_w = WENO(flux_c, FlowDir)
-%WENO: Apply Weighted Essentially NonOscillatory scheme
-%   Receive fluxes at finite volume centers and direction of flow (upwind -
-%   downwind), the flow direction is given by the velocity or pressure drop
-%   If v>=0 or dP<0, then an upwind scheme is applied. If v<0 or dP>0, then
-%   an downwind scheme is applied. The function return the fluxes at finite
-%   volume walls. upwind means that the computation is done from left to 
-%   right on the domain, or in terms of the PSA column "co-current flow 
-%   regarding the feed inlet". downwind means that the computation is done 
-%   from right to left on the domain, or in terms of the PSA column "counter
-%   -current flow regarding the feed inlet"
+%WENO: 应用加权基本无振荡格式
+%   接收有限体积单元中心处的通量和流动方向（顺风 -
+%   逆风），流动方向由速度或压降决定。
+%   如果 v>=0 或 dP<0，则应用顺风格式。如果 v<0 或 dP>0，则
+%   应用逆风格式。该函数返回有限体积
+%   单元壁面处的通量。顺风（upwind）意味着计算在域上从左到右进行，
+%   或者就PSA塔而言，是"相对于进料口的并流流动"。
+%   逆风（downwind）意味着计算在域上从右到左进行，
+%   或者就PSA塔而言，是"相对于进料口的逆流流动"。
 %   
-%   Input:
-%       flux_c : flux at the finite volume centers
-%       FlowDir: direction of flow. OPTIONS: upwind and downwind
+%   输入:
+%       flux_c : 有限体积单元中心处的通量
+%       FlowDir: 流动方向。选项: upwind (顺风) 和 downwind (逆风)
 %   
-%   Output:
-%       flux_w : flux at the edges or walls of the finite volumes
+%   输出:
+%       flux_w : 有限体积单元边缘或壁面处的通量
 %   
 %%  
-%   For co-current flow (upwind) the fluxes at the walls of finite volumes
-%   are calculated as follows:
+%   对于并流（顺风），有限体积单元壁面处的通量
+%   计算如下：
 %   
 %%  
 %   $$ f_{j+0.5}=\frac{\alpha_{0,j}}{\alpha_{0,j}+\alpha_{1,j}} 
@@ -31,8 +30,8 @@ function flux_w = WENO(flux_c, FlowDir)
 %   $$ \alpha_{1,j}= \frac{1/3}{(f_{j}-f_{j-1}+\delta)^4} $$
 %   
 %%  
-%   For counter-current flow (downwind) the fluxes at the walls of finite 
-%   volumes are calculated as follows:
+%   对于逆流（逆风），有限体积单元壁面处的通量
+%   计算如下：
 %   
 %%  
 %   $$ f_{j+0.5}=\frac{\alpha_{0,j}}{\alpha_{0,j}+\alpha_{1,j}} 
@@ -51,7 +50,7 @@ function flux_w = WENO(flux_c, FlowDir)
     alpha0 = zeros(size(flux_c)) ;
     alpha1 = zeros(size(flux_c)) ;
     
-    % Fluxes at boundaries of the domain
+    % 域边界处的通量
     flux_w(1, :)   = flux_c(1, :)   ;
     flux_w(N+1, :) = flux_c(N+2, :) ;
     
@@ -90,4 +89,4 @@ function flux_w = WENO(flux_c, FlowDir)
         error('Please specify the direction of flow. OPTIONS: upwind and downwind')
     end 
 %   
-end 
+end

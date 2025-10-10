@@ -1,106 +1,104 @@
 function  [objectives, constraints, a, b, c, d, e, t1, t2, t3, t4, t5] = PSACycle(vars, material, x0, type, N, it_disp)
-%Skarstrom: Simulate a 5-Step Modified Skarstrom PSA cycle
-%   This function is able to simulate a 5-Step Modified Skarstrom PSA cycle
-%   and provide the state variables and process objectives. Finite Volume 
-%   method is used for calculating the derivatives due to the inherent mass
-%   and energy conservation due to calculating the flux. An example of the 
-%   FVM set up is shown below with the ordering of the volumes 
+%Skarstrom: 模拟一个五步改进型Skarstrom变压吸附循环
+%   本函数能够模拟一个五步改进型Skarstrom变压吸附循环，
+%   并提供状态变量和过程目标。由于通量计算具有内在的
+%   质量和能量守恒特性，因此使用有限体积法（FVM）计算导数。
+%   FVM设置的示例如下，其中包含了体积单元的排序
 %   
-%   Diagram of Column divided into sections shown below with corresponding
-%   designation for inlet and outlet. N is a user defined value below
+%   如下所示的吸附塔分段示意图，带有相应的
+%   入口和出口标识。N是用户在下面定义的值
 %   
-%   Inlet                                                     Outlet
+%   入口                                                     出口
 %      -------------------------------\    \----------------------
 %       1   |   2   |   3   |   4   |           N|   N+1   |   N+2
 %      --------------------------------\    \---------------------
 %   
-%   Input:
-%   vars: Process variables which are in order: Length of column [m] 
-%         adsoprtion pressure [Pa], inlet molar flux [mol/s/m^2], time of 
-%         adsorption step [s], light product reflux ratio [-], heavy product
-%         reflux ratio [-], and intermediate pressure. Not all of these 
-%         variables are used for all cycles, so when the simulated cycle do
-%         not have the step relating the "vars", assign these to zero. These
-%         variables are inputed as they are desing variables and can be 
-%         changed to be optimized.
+%   输入:
+%   vars: 过程变量，顺序为：塔长[m]，
+%         吸附压力[Pa]，入口摩尔通量[mol/s/m^2]，
+%         吸附步骤时间[s]，轻组分产品回流比[-]，重组分产品
+%         回流比[-]，以及中间压力。并非所有
+%         这些变量都用于所有循环，因此当模拟的循环
+%         没有与"vars"相关的步骤时，将这些值赋为零。这些
+%         变量作为设计变量输入，可以
+%         更改以进行优化。
 %   
-%   x0  : Initial profile of state variables in the column, it's not mandatory
-%   N   : Number of Finite Volumes, it's not mandatory
+%   x0  : 塔内状态变量的初始分布，非必需参数
+%   N   : 有限体积单元的数量，非必需参数
 %   
-%   it_disp: This tells the program whether to show the cycle number along
-%         with the CCS values or not. This is automatically set to no to
-%         allow for the speed up of calculations.
+%   it_disp: 该参数告诉程序是否显示循环次数
+%         以及循环稳态（CSS）值。此项自动设置为"no"以
+%         加快计算速度。
 %   
-%   Output:
-%   The output variables can be customized depend upon of the purpose. Here
-%   are two cases:
-%   1) Optimization: it is necessary to get the "objectives" variable: this
-%      provides the purity and recovery of CO2. And also the constraints: 
-%      Provides whether a constraint has been violated or not. There are 
-%      some constraints that need to be satisfied. First, the recovery of 
-%      the process must be over 90%. Second, the purity of the final product
-%      must be greater than the entering stream.
+%   输出:
+%   输出变量可以根据目的进行定制。这里
+%   有两种情况：
+%   1) 优化：需要获取"objectives"变量：
+%      该变量提供CO2的纯度和回收率。以及约束条件"constraints"：
+%      提供约束是否被违反。有
+%      一些约束需要满足。首先，
+%      过程的回收率必须超过90%。其次，最终产品的纯度
+%      必须高于进料流。
 %   
-%      a-e: These are the state variables for the five steps: 
-%      CoCPressurization, Adsorption, Heavy Reflux, CnCDepressurization and
-%      Light Reflux.
-%      The matrix is set up where each row contains all the values of the
-%      state variables at a single moment in time, and each column contains
-%      the values of a single state variable at a single location throughout
-%      the step. As shown above in the graph, for each state variable there
-%      are N volumes for which the value is known at the center of volume.
-%      In addition, for calculating purity and recovery, the state variable
-%      values at the two ends of the column are also provided. NOTE: since
-%      there are no spatial derivatives in the solid loading equations, and
-%      purity and recovery do not need these values, they are assumed to be
-%      equal to the volume next to it. The order of the state variables are
-%      as follows
+%      a-e: 这五个步骤的状态变量：
+%      并流加压、吸附、重组分回流、并流降压和
+%      轻组分回流。
+%      矩阵的设置方式是，每一行包含
+%      某一时刻所有状态变量的值，每一列包含
+%      整个步骤中单个位置上单个状态变量的
+%      值。如上图所示，对于每个状态变量，
+%      有N个体积单元，其中心值是已知的。
+%      此外，为了计算纯度和回收率，还提供了
+%      塔两端的状态变量值。注意：由于
+%      固体负载量方程中没有空间导数，并且
+%      纯度和回收率不需要这些值，因此假定它们
+%      等于相邻体积单元的值。状态变量的顺序
+%      如下：
 %   
-%      a-e(:, 1:N+2) are the dimensionless pressure. In order to retrieve the
-%      true pressure, multiply the dimensionless pressure by the adsorption
-%      pressure, P_0 or P_H.
-%      a-e(:,  N+3:2*N+4) are the CO2 gas mole fraction
-%      a-e(:, 2*N+5:3*N+6) are the dimensionless CO2 molar loadings. In order
-%      to retrieve the true molar loading, multiply the dimensionless molar
-%      loading by the molar loading scaling factor, q_s
-%      a-e(:, 3*N+7:4*N+8) are the dimensionless N2 molar loadings. In order
-%      to retrieve the true molar loading, multiply the dimensionless molar
-%      loading by the molar loading scaling factor, q_s
-%      a-e(:, 4*N+9:5*N+10) are the dimensionless column temperature. In order
-%      to retrieve the true column temperature, multiply the column temperature
-%      by the feed temperature, T_0
+%      a-e(:, 1:N+2) 是无量纲压力。要获得
+%      真实压力，需将无量纲压力乘以吸附
+%      压力 P_0 或 P_H。
+%      a-e(:,  N+3:2*N+4) 是CO2气体摩尔分数
+%      a-e(:, 2*N+5:3*N+6) 是无量纲CO2摩尔负载量。要
+%      获得真实摩尔负载量，需将无量纲摩尔
+%      负载量乘以摩尔负载量比例因子 q_s
+%      a-e(:, 3*N+7:4*N+8) 是无量纲N2摩尔负载量。要
+%      获得真实摩尔负载量，需将无量纲摩尔
+%      负载量乘以摩尔负载量比例因子 q_s
+%      a-e(:, 4*N+9:5*N+10) 是无量纲塔温。要
+%      获得真实塔温，需将塔温
+%      乘以进料温度 T_0
 %   
-%      t1-t5 are the dimensionless times for the five steps. In order to
-%      retrieve the true time, multiply the dimensionless time by the ratio
-%      of the length to the velocity scaling factor (L/v_0)
+%      t1-t5 是五个步骤的无量纲时间。要
+%      获得真实时间，需将无量纲时间乘以
+%      长度与速度比例因子的比值 (L/v_0)
 %   
-%   2) Data collection intended to ANNs training: To get an output suitable
-%      to train Artificial Neural Network of each step of the PSA cycle,
-%      it is necessay to collect the initial and final states of variables
-%      ans store it in adequate variables to be used by the ANN toolbox. 
-%      These variables are: a_fin, b_fin, c_fin, d_fin, e_fin, a_in, b_in,
-%      c_in, d_in, e_in.
-%      Where fin means final state, and in means initial state.
+%   2) 用于ANN训练的数据收集：为了获得适合
+%      训练PSA循环各步骤人工神经网络（ANN）的输出，
+%      有必要收集变量的初始和最终状态，
+%      并将其存储在适当的变量中，以供ANN工具箱使用。
+%      这些变量是：a_fin, b_fin, c_fin, d_fin, e_fin, a_in, b_in,
+%      c_in, d_in, e_in。
+%      其中 fin 表示最终状态，in 表示初始状态。
 %   
-%   The following assumptions were made:
-%   1) Ideal Gas Law is used to describe the gas phase
-%   2) No concentration, pressure, or temperature gradient in the the radial
-%      or azmuth directions
-%   3) Linear Driving Force is used to describe the gas diffusion into the
-%      adsorbent
-%   4) Adsorbent properties, and void fraction are constant throughout the
-%      column
-%   5) Viscosity of the gas is independent of pressure
-%   6) There is thermal equilibrium between the adsorbent and the gas phase
-%   7) Ergun Equation is used to describe the pressure drop across the bed 
-%   8) Column operates adiabatically, so any wall energy balance have to be
-%      used
-%   9) An axially dispersed plug flow model is used to represent bulk fluid
-%      flow
+%   作出了以下假设：
+%   1) 使用理想气体定律描述气相
+%   2) 径向或方位角方向上没有浓度、压力或温度梯度
+%   3) 使用线性驱动力模型（LDF）描述气体向
+%      吸附剂中的扩散
+%   4) 吸附剂属性和空隙率在整个
+%      塔中保持恒定
+%   5) 气体粘度与压力无关
+%   6) 吸附剂与气相之间处于热平衡状态
+%   7) 使用Ergun方程描述床层的压降
+%   8) 塔在绝热条件下操作，因此必须使用
+%      任何壁面能量平衡
+%   9) 使用轴向弥散活塞流模型表示主体流体
+%      流动
 %   
-%% Check number of inputs
-%   If no value is given for the iteration variable, it is no. If no value
-%   is given for N, it is 10. If no value is given for the x, it is empty.
+%% 检查输入数量
+%   如果没有为迭代变量赋值，则为'no'。如果没有为
+%   N赋值，则为10。如果没有为x赋值，则为空。
     if nargin < 6
         it_disp = 'no';
         if nargin < 5
@@ -111,21 +109,21 @@ function  [objectives, constraints, a, b, c, d, e, t1, t2, t3, t4, t5] = PSACycl
         end
     end
 %   
-%% Initialize parameter for the simulation
-%   Specify the parameters for the simulation
+%% 初始化模拟参数
+%   指定模拟的参数
     
-    % Initialize objectives and constraints output
+    % 初始化目标和约束输出
     switch type
         case 'ProcessEvaluation'
             constraints = [0, 0, 0];
         case 'EconomicEvaluation'
             constraints = [0, 0, 0];
         otherwise
-            error('Error. %s is not a recognizable type of operation.' , type) ;
+            error('错误. %s 不是可识别的操作类型。' , type) ;
     end
     objectives  = [0, 0]    ;
     
-    % Input parameters
+    % 输入参数
     InputParams     = ProcessInputParameters(vars, material, N) ;
     Params          = InputParams{1}                  ;
     IsothermParams  = InputParams{2}                  ;
@@ -133,7 +131,7 @@ function  [objectives, constraints, a, b, c, d, e, t1, t2, t3, t4, t5] = PSACycl
     EconomicParams  = InputParams{4}                  ;
 %     economic_class  = InputParams{5}                  ;
     
-    % Retrieve process parameters
+    % 检索过程参数
     N				= Params(1)	      ;
     ro_s			= Params(4)	      ;
     T_0				= Params(5)	      ;
@@ -157,27 +155,27 @@ function  [objectives, constraints, a, b, c, d, e, t1, t2, t3, t4, t5] = PSACycl
     T_HR            = Params(34)      ;
     ndot_HR         = Params(35)	  ;
     
-    % Call PSA cycle functions
+    % 调用PSA循环函数
     CoCPressurization_fxn   = @(t, x) FuncCoCPressurization(t, x, Params, IsothermParams)   ;
     Adsorption_fxn          = @(t, x) FuncAdsorption(t, x, Params, IsothermParams)          ;
     HeavyReflux_fxn         = @(t, x) FuncHeavyReflux(t, x, Params, IsothermParams)         ;
     CnCDepressurization_fxn = @(t, x) FuncCnCDepressurization(t, x, Params, IsothermParams) ;
     
-    % Retrieve times of PSA steps
+    % 检索PSA各步骤的时间
     t_CoCPres   = Times(1) ;
     t_ads       = Times(2) ;
     t_HR        = Times(6) ;
     t_CnCDepres = Times(3) ;
     t_LR        = Times(4) ;
     
-    % Dimensionless times 
+    % 无量纲时间
     tau_CoCPres   = t_CoCPres*v_0/L   ;
     tau_ads       = t_ads*v_0/L       ;
     tau_HR        = t_HR*v_0/L        ;
     tau_CnCDepres = t_CnCDepres*v_0/L ;
     tau_LR        = t_LR*v_0/L        ;
     
-    % Initialize the column (initial conditions)
+    % 初始化吸附塔（初始条件）
     if nargin < 2 || isempty(x0)
         q                = Isotherm(y_0, P_l, 298.15, IsothermParams) ;
         x0               = zeros(5*N+10,1) ;
@@ -202,13 +200,13 @@ function  [objectives, constraints, a, b, c, d, e, t1, t2, t3, t4, t5] = PSACycl
     opts4 = odeset( 'JPattern', Jac_CnCDepressurization(N), 'RelTol', 1e-6) ;
     opts5 = odeset( 'JPattern', Jac_LightReflux(N), 'RelTol', 1e-6)         ;
 %   
-%% Begin simulating PSA cycle. This is skipped if the first constraint is violated.
-%   Run the simulation until the change in the temperature, gas mole fraction
-%   and CO2 molar loading is less than 0.5%. For the molar loading and the
-%   mole fraction, the simulation also stops if the absolute change in the
-%   state variable is less than 5e-5 and 2.5e-4 respectively. 
+%% 开始模拟PSA循环。如果第一个约束被违反，则跳过此部分。
+%   运行模拟，直到温度、气体摩尔分数
+%   和CO2摩尔负载量的变化小于0.5%。对于摩尔负载量和
+%   摩尔分数，如果状态变量的绝对变化分别小于
+%   5e-5和2.5e-4，模拟也会停止。
     
-    % initialize variables to store the desired data to be collected
+    % 初始化变量以存储要收集的所需数据
     a_in  = [] ;
     b_in  = [] ;
     c_in  = [] ;
@@ -223,15 +221,15 @@ function  [objectives, constraints, a, b, c, d, e, t1, t2, t3, t4, t5] = PSACycl
 if constraints(1) == 0
     
     for i=1:700
-        %disp(['Iteration for CSS condition number: ', num2str(i)])
+        %disp(['循环稳态条件的迭代次数: ', num2str(i)])
         
-        % Store initial conditions for CoCPressurization step - all iterations
+        % 存储并流加压步骤的初始条件 - 所有迭代
         a_in = [a_in; x0'] ;
         
-    %% 1. Simulate CoCPressurization step
+    %% 1. 模拟并流加压步骤
         [t1, a] = ode15s(CoCPressurization_fxn, [0 tau_CoCPres], x0, opts1) ;
         
-        % Correct the output (clean up results from simulation)
+        % 修正输出（清理模拟结果）
         idx             = find(a(:, 1) < a(:, 2))         ;  % P_1  < P_2
         a(idx ,1)       = a(idx, 2)                       ;  % P_1  = P_2
         a(idx, N+3)     = a(idx, N+4)                     ;  % y_1  = y_2
@@ -242,15 +240,15 @@ if constraints(1) == 0
         a(:, 4*N+8)     = a(:, 4*N+7)                     ;  % x2_N+2 = x2_N+1
         a(:, N+3:2*N+4) = max(min(a(:, N+3:2*N+4), 1), 0) ;  % 0 <= y => 1
         
-        % Store final conditions for CoCPressurization step - all iterations
-        % and the CO2 and total moles at the Front and End of the column
+        % 存储并流加压步骤的最终条件 - 所有迭代
+        % 以及塔前、后端处的CO2和总摩尔数
         [totalFront, CO2Front, ~] = StreamCompositionCalculator(t1*L/v_0, a, 'HPEnd') ;
         [totalEnd, CO2End, ~]     = StreamCompositionCalculator(t1*L/v_0, a, 'LPEnd') ;
         a_fin = [a_fin; a(end, :), CO2Front, totalFront, CO2End, totalEnd]            ;
         
-        % Prepare initial conditions for Adsorption step
-        x10         = a(end, :)' ;  % Final state of previous step is the
-                                    % initial state for current step
+        % 为吸附步骤准备初始条件
+        x10         = a(end, :)' ;  % 上一步的最终状态是
+                                    % 当前步骤的初始状态
         x10(1)      = P_inlet    ;  % BC z=0 P: P_1   = P_inlet
         x10(N+2)    = 1          ;  % BC z=1 P: P_N+2 = 1
         x10(N+3)    = y_0        ;  % BC z=0 y: y_1   = y_0
@@ -258,16 +256,16 @@ if constraints(1) == 0
         x10(4*N+9)  = 1          ;  % BC z=0 T: T_1   = 1
         x10(5*N+10) = x10(5*N+9) ;  % BC z=1 T: T_N+2 = T_N+1
         
-        % Store initial conditions for Adsorption step - all iterations
+        % 存储吸附步骤的初始条件 - 所有迭代
         b_in = [b_in; x10'] ;
         
-        % Initial conditions of states at first step of the PSA cycle
+        % PSA循环第一步的状态初始条件
         statesIC = a(1, [2:N+1, N+4:2*N+3, 2*N+6:3*N+5, 3*N+8:4*N+7, 4*N+10:5*N+9]) ;
 %       
-    %% 2. Simulate Adsorption step
+    %% 2. 模拟吸附步骤
         [t2, b] = ode15s(Adsorption_fxn, [0 tau_ads], x10, opts2) ;
         
-        % Correct the output (clean up results from simulation)
+        % 修正输出（清理模拟结果）
         idx             = find(b(:, N+1) < 1)             ;  % P_N+1 < 1 = P_N+2
         b(idx, N+2)     = b(idx, N+1)                     ;  % P_N+2 = P_N+1
         b(:, 2*N+5)     = b(:, 2*N+6)                     ;  % x1_1 = x1_2
@@ -281,15 +279,15 @@ if constraints(1) == 0
             b = velocitycleanup(b)                     ;
         end
         
-        % Store final conditions for Adsorption step - all iterations
-        % and the CO2 and total moles at the Front and End of the column
+        % 存储吸附步骤的最终条件 - 所有迭代
+        % 以及塔前、后端处的CO2和总摩尔数
         [totalFront, CO2Front, ~] = StreamCompositionCalculator(t2*L/v_0, b, 'HPEnd') ;
         [totalEnd, CO2End, TEnd]  = StreamCompositionCalculator(t2*L/v_0, b, 'LPEnd') ;
         b_fin = [b_fin; b(end, :), CO2Front, totalFront, CO2End, totalEnd]            ;
         
-        % Add and update necessary parameters for Light Reflux step. These
-        % are the composition and temperature going out of the adsorption 
-        % (light product end), which are those for the inlet of the LR step
+        % 添加并更新轻组分回流步骤所需的参数。这些
+        % 是吸附步骤出口（轻组分产品端）的组成和温度，
+        % 它们是轻组分回流步骤的入口参数
         y_LR        = CO2End/totalEnd ;
         T_LR        = TEnd            ;
         ndot_LR     = totalEnd/t_ads  ;
@@ -297,12 +295,12 @@ if constraints(1) == 0
         Params(28)  = T_LR            ;
         Params(29)  = ndot_LR         ;
         
-        % Call the function for Light Reflux step with updated parameters
+        % 使用更新后的参数调用轻组分回流步骤的函数
         LightReflux_fxn = @(t, x) FuncLightReflux(t, x, Params, IsothermParams) ;
         
-        % Prepare initial conditions for Heavy Reflux step
-        x20         = b(end, :)' ;  % Final state of previous step is the
-                                    % initial state for current step
+        % 为重组分回流步骤准备初始条件
+        x20         = b(end, :)' ;  % 上一步的最终状态是
+                                    % 当前步骤的初始状态
         x20(1)      = P_inlet    ;  % BC z=0 P: P_1   = P_inlet
         x20(1)      = x20(2)     ;   
         x20(N+2)    = 1          ;  % BC z=1 P: P_N+2 = 1
@@ -311,13 +309,13 @@ if constraints(1) == 0
         x20(4*N+9)  = T_HR/T_0   ;  % BC z=0 T: T_1   = T_HR/T_0
         x20(5*N+10) = x20(5*N+9) ;  % BC z=1 T: T_N+2 = T_N+1
         
-        % Store initial conditions for Heavy Reflux step - all iterations
+        % 存储重组分回流步骤的初始条件 - 所有迭代
         c_in = [c_in; x20'] ;
 %       
-    %% 3. Simulate Heavy Reflux step
+    %% 3. 模拟重组分回流步骤
         [t3, c] = ode15s(HeavyReflux_fxn, [0 tau_HR], x20, opts3) ;
         
-        % Correct the output (clean up results from simulation)
+        % 修正输出（清理模拟结果）
         idx             = find(c(:, N+1) < 1)             ;  % P_N+1 < 1 = P_N+2
         c(idx, N+2)     = c(idx, N+1)                     ;  % P_N+2 = P_N+1
         c(:, 2*N+5)     = c(:, 2*N+6)                     ;  % x1_1 = x1_2
@@ -331,15 +329,15 @@ if constraints(1) == 0
             %c = velocitycleanup(c)                      ;
         end
         
-        % Store final conditions for Heavy Reflux step - all iterations
-        % and the CO2 and total moles at the Front and End of the column
+        % 存储重组分回流步骤的最终条件 - 所有迭代
+        % 以及塔前、后端处的CO2和总摩尔数
         [totalFront, CO2Front, ~] = StreamCompositionCalculator(t3*L/v_0, c, 'HPEnd') ;
         [totalEnd, CO2End, ~]     = StreamCompositionCalculator(t3*L/v_0, c, 'LPEnd') ;
         c_fin = [c_fin; c(end, :), CO2Front, totalFront, CO2End, totalEnd]            ;
         
-        % Prepare initial conditions for CoCDepressurization step
-        x30         = c(end,:)'   ;   % Final state of previous step is the
-                                      % initial state for current step
+        % 为并流降压步骤准备初始条件
+        x30         = c(end,:)'   ;   % 上一步的最终状态是
+                                      % 当前步骤的初始状态
         x30(1)      = x30(2)      ;   % BC z=0 P: P_1   = P_2
         x30(N+2)    = x30(N+1)    ;   % BC z=1 P: P_N+2 = P_N+1
         x30(N+3)    = x30(N+4)    ;   % BC z=0 y: y_1   = y_2
@@ -347,13 +345,13 @@ if constraints(1) == 0
         x30(4*N+9)  = x30(4*N+10) ;   % BC z=0 T: T_1   = T_2
         x30(5*N+10) = x30(5*N+9)  ;   % BC z=1 T: T_N+2 = T_N+1
         
-        % Store initial conditions for CoCDepressurization step - all iterations
+        % 存储并流降压步骤的初始条件 - 所有迭代
         d_in = [d_in; x30'] ;
 %       
-    %% 4. Simulate CnCDepressurization step
+    %% 4. 模拟并流降压步骤
         [t4, d] = ode15s(CnCDepressurization_fxn, [0 tau_CnCDepres], x30, opts4) ;
         
-        % correct the output (clean up results from simulation)
+        % 修正输出（清理模拟结果）
         idx             = find(d(:, 2) < d(:, 1))         ;  % P_2  < P_1
         d(idx ,1)       = d(idx, 2)                       ;  % P_1  = P_2
         d(:, 2*N+5)     = d(:, 2*N+6)                     ;  % x1_1 = x1_2
@@ -362,29 +360,29 @@ if constraints(1) == 0
         d(:, 4*N+8)     = d(:, 4*N+7)                     ;  % x2_N+2 = x2_N+1
         d(:, N+3:2*N+4) = max(min(d(:, N+3:2*N+4), 1), 0) ;  % 0 <= y => 1
         
-        % Store final donditions for CnCDepressurization step - all iterations
-        % and the CO2 and total moles at the Front and End of the column
+        % 存储并流降压步骤的最终条件 - 所有迭代
+        % 以及塔前、后端处的CO2和总摩尔数
         [totalFront, CO2Front, ~] = StreamCompositionCalculator(t4*L/v_0, d, 'HPEnd') ;
         [totalEnd, CO2End, ~]     = StreamCompositionCalculator(t4*L/v_0, d, 'LPEnd') ;
         d_fin = [d_fin; d(end, :), CO2Front, totalFront, CO2End, totalEnd]            ;
         
-        % Prepare initial donditions for Light Reflux step
-        x40         = d(end,:)'    ;  % Final state of previous step is the
-                                      % initial state for durrent step
-        x40(1)      = P_l/P_0      ;  % Bd z=0 P: P_1   = P_l/P_0
-        %x40(N+2)    = 2*P_l/P_0    ;  % Bd z=1 P: P_N+2 = 2*P_l/P_0 % NOTE: be aware of this alpha here, on the other dode is just 2
-        x40(N+3)    = x40(N+4)     ;  % Bd z=0 y: y_1   = y_2
-        x40(2*N+4)  = y_LR         ;  % Bd z=1 y: y_N+2 = y_LR
-        x40(4*N+9)  = x40(4*N+10)  ;  % Bd z=0 T: T_1   = T_2
-        x40(5*N+10) = T_LR/T_0     ;  % Bd z=1 T: T_N+2 = T_LR/T_0
+        % 为轻组分回流步骤准备初始条件
+        x40         = d(end,:)'    ;  % 上一步的最终状态是
+                                      % 当前步骤的初始状态
+        x40(1)      = P_l/P_0      ;  % BC z=0 P: P_1   = P_l/P_0
+        %x40(N+2)    = 2*P_l/P_0    ;  % BC z=1 P: P_N+2 = 2*P_l/P_0 % 注意：注意这里的alpha，在另一侧代码中只是2
+        x40(N+3)    = x40(N+4)     ;  % BC z=0 y: y_1   = y_2
+        x40(2*N+4)  = y_LR         ;  % BC z=1 y: y_N+2 = y_LR
+        x40(4*N+9)  = x40(4*N+10)  ;  % BC z=0 T: T_1   = T_2
+        x40(5*N+10) = T_LR/T_0     ;  % BC z=1 T: T_N+2 = T_LR/T_0
         
-        % Store initial conditions for Light Reflux step - all iterations
+        % 存储轻组分回流步骤的初始条件 - 所有迭代
         e_in = [e_in; x40'] ;
 %       
-    %% 5. Simulate Light Reflux step
+    %% 5. 模拟轻组分回流步骤
         [t5, e] = ode15s(LightReflux_fxn, [0 tau_LR], x40, opts5) ;
         
-        % Correct the output (clean up results from simulation)
+        % 修正输出（清理模拟结果）
         idx             = find(e(:, 2) < e(:, 1))         ;  % P_2  < P_1
         e(idx ,1)       = e(idx, 2)                       ;  % P_1  = P_2
         e(:, 2*N+5)     = e(:, 2*N+6)                     ;  % x1_1 = x1_2
@@ -396,13 +394,13 @@ if constraints(1) == 0
         e = VelocityCorrection(e, ndot_LR*alpha, 'LPEnd') ;
         %e = velocitycleanup(e)                            ;
         
-        % Store final conditions for Light Reflux step - all iterations
-        % and the CO2 and total moles at the Front and End of the column
+        % 存储轻组分回流步骤的最终条件 - 所有迭代
+        % 以及塔前、后端处的CO2和总摩尔数
         [totalFront, CO2Front, TFront]  = StreamCompositionCalculator(t5*L/v_0, e, 'HPEnd') ;
         [totalEnd, CO2End, ~]           = StreamCompositionCalculator(t5*L/v_0, e, 'LPEnd') ;
         e_fin = [e_fin; e(end, :), CO2Front, totalFront, CO2End, totalEnd]                  ;
         
-        % Calculate necessary parameters for Heavy Reflux step
+        % 计算重组分回流步骤所需的参数
         y_HR       = CO2Front/totalFront    ;
         T_HR       = TFront                 ;
         ndot_HR    = totalFront.*beta/t_HR  ;
@@ -412,9 +410,9 @@ if constraints(1) == 0
         
         HeavyReflux_fxn = @(t, x) FuncHeavyReflux(t, x, Params, IsothermParams) ;
         
-        % Prepare initial conditions for CoCPressurization step
-        x0         = e(end, :)' ;  % Final state of previous step is the
-                                   % initial state for current step
+        % 为并流加压步骤准备初始条件
+        x0         = e(end, :)' ;  % 上一步的最终状态是
+                                   % 当前步骤的初始状态
         x0(1)      = x0(2)      ;  % BC z=0 P: P_1   = P_2
         x0(N+2)    = x0(N+1)    ;  % BC z=1 P: P_N+2 = P_N+1
         x0(N+3)    = y_0        ;  % BC z=0 y: y_1   = y_0
@@ -422,10 +420,10 @@ if constraints(1) == 0
         x0(4*N+9)  = 1          ;  % BC z=0 T: T_1   = 1
         x0(5*N+10) = x0(5*N+9)  ;  % BC z=1 T: T_N+2 = T_N+1
         
-        % Final conditions of states at lat step of the PSA cycle
+        % PSA循环最后一步的状态最终条件
         statesFC = e(end, [2:N+1, N+4:2*N+3, 2*N+6:3*N+5, 3*N+8:4*N+7, 4*N+10:5*N+9]) ;
 %       
-    %% Check CCS condition
+    %% 检查循环稳态（CSS）条件
         
 %         [cyclic_check, cyclic_display] = CCS_Check(a, b, c, d, e, t1, t2, t3, t4, t5) ;
 %         
@@ -436,17 +434,16 @@ if constraints(1) == 0
 %         if cyclic_check == 1
 %             break
 %         end 
-        % CCS condition of states
+        % 状态的CSS条件
         CSS_states = norm(statesIC-statesFC) ;
-        % Mass balance condition
+        % 质量平衡条件
         [~, ~, massBalance] = ProcessEvaluation(a, b, c, d, e, t1, t2, t3, t4, t5) ;
         
-        % Check if CCS has been acheived or not
+        % 检查CSS是否已达到
         if CSS_states <= 1e-3 && abs(massBalance-1) <= 0.005
             break
         end
-%         % Condition to stop if the mass balance is not satisfied but also is
-%         % not changing between ten consecutive iterations
+%         % 如果质量平衡不满足但在连续十次迭代中也不再变化，则停止的条件
 %         mb(i) = massBalance ;
 %         if i > 15
 %             if CSS_states <= 1e-3 && abs(massBalance-1) > 0.005
@@ -462,7 +459,7 @@ if constraints(1) == 0
 %       
     end
     
-    %% Process and Economic evaluation
+    %% 过程和经济性评估
     
     [purity, recovery, MB] = ProcessEvaluation(a, b, c, d, e, t1, t2, t3, t4, t5) ;
     
@@ -470,45 +467,45 @@ if constraints(1) == 0
     % cycle_time   = EconomicParams(3) ;
     cycle_time = t_CoCPres + t_ads + t_HR + t_CnCDepres + t_LR       ;
     
-    % Calculate the amount of flue gas that is fed during the cycle
+    % 计算循环期间供给的烟气量
     [n_tot_pres, ~, ~] = StreamCompositionCalculator(t1*L/v_0, a, 'HPEnd') ;
     [n_tot_ads, ~, ~]  = StreamCompositionCalculator(t2*L/v_0, b, 'HPEnd') ;
     gas_fed = n_tot_pres + n_tot_ads ;  % mols/m^2
     
-    % Calculate the required radius of the column to satisfy the molar flow rate
+    % 计算满足摩尔流速所需的塔内径
     radius_inner = sqrt((desired_flow.*cycle_time/gas_fed)/pi()) ;    % m
     r_in = radius_inner                                          ;
     
-    % Calculate the energy required during the Pressurization step
+    % 计算加压步骤所需的能量
     E_pres  = CompressionEnergy(t1*L/v_0, a, 1e5)   ; % kWh
     
-    % Calculate the energy required during the Feed step
+    % 计算进料步骤所需的能量
     E_feed  = CompressionEnergy(t2*L/v_0, b, 1e5)   ; % kWh
     
-    % Calculate the energy required during the Heavy Reflux Step
+    % 计算重组分回流步骤所需的能量
     E_HR    = CompressionEnergy(t3*L/v_0, c, 1e5)   ; % kWh
     
-    % Calculate the energy required during the Counter Current Depressurization step
+    % 计算逆流降压步骤所需的能量
     E_bldwn = VacuumEnergy(t4*L/v_0, d, 1e5)        ; % kWh
     
-    % Calculate the energy required during the Light Reflux Step
+    % 计算轻组分回流步骤所需的能量
     E_evac  = VacuumEnergy(t5*L/v_0, e, 1e5)        ; % kWh
     
-    % Calculate the total energy required
-    energy_per_cycle = E_pres + E_feed + E_HR + E_bldwn + E_evac ; % [kWh per cycle]
+    % 计算总能量需求
+    energy_per_cycle = E_pres + E_feed + E_HR + E_bldwn + E_evac ; % [kWh / 循环]
     
-    % Calculate the CO2 recovered during the cycle [ton CO_2 per cycle and mol/cycle]
+    % 计算循环中回收的CO2量 [吨 CO_2 / 循环 和 mol/循环]
     [~, n_CO2_CnCD, ~]   = StreamCompositionCalculator(t4*L/v_0, d, 'HPEnd') ;
     [~, n_CO2_LR, ~]     = StreamCompositionCalculator(t5*L/v_0, e,  'HPEnd') ;
     CO2_recovered_cycle  = (n_CO2_CnCD+(1-beta)*n_CO2_LR)*r_in^2*pi()*MW_CO2/1e3 ;        
     CO2_recovered_cycle2 = (n_CO2_CnCD+(1-beta)*n_CO2_LR)*r_in^2*pi() ;
     
-    %Calculate the productivity of the column and the energy requirments
+    %计算塔的生产率和能量需求
     mass_adsorbent     = L*pi()*r_in^2*(1-epsilon)*ro_s                    ;
     productivity       = CO2_recovered_cycle2./cycle_time./mass_adsorbent  ;
     energy_requirments = energy_per_cycle./CO2_recovered_cycle             ;
     
-    % Compile objectives and constraint violations
+    % 汇编目标和约束违反情况
     con = recovery/MB - 0.9       ;
     if con < 0
         constraints(2) = abs(con) ;
@@ -537,10 +534,9 @@ if constraints(1) == 0
 %   
 end 
 %   
-%% Filter stored data 
-    % Prepare the collected data to store it in the output variables only
-    % every 5 cycle but guaranteeing that the last cycle (CSS condition)
-    % is stored
+%% 筛选存储的数据
+    % 准备收集的数据，以便仅每5个循环存储一次输出变量，
+    % 同时保证最后一个循环（CSS条件）被存储
     
     if mod(i, 5) ==0
         idx_out = [1, 5:5:i]    ;
@@ -559,55 +555,54 @@ end
 %     d_in  = d_in(idx_out, :)    ;
 %     e_in  = e_in(idx_out, :)    ;
 %   
-%% Complementary Functions
+%% 辅助函数
    
     function [n_tot, n_CO2, Temp] = StreamCompositionCalculator(time, state_vars, ProductEnd)
-    %MoleStreamCalculator: Calculate the composition of streams
-    %   Calculate the composition (moles of CO2 and total moles), and 
-    %   temperature of a stream at any end of the column end. 
+    %MoleStreamCalculator: 计算流组成
+    %   计算塔任一端流的组成（CO2摩尔数和总摩尔数）
+    %   和温度。
     %   
-    %   Input:
-    %   time      : Dimensional time vector supplied by the ODE solver
-    %   state_vars: Dimensionless state variable matrix supplied for the
-    %               step from the ODE solver
-    %   ProductEnd: End of the column where the composition will be 
-    %               calculated. OPTIONS: HPEnd and LPEnd. HPEnd stands for
-    %               heavy product end, which is at the bottom of the column,
-    %               and LPEnd stands for light product end, which is at the
-    %               top of the column.
+    %   输入:
+    %   time      : ODE求解器提供的有量纲时间向量
+    %   state_vars: ODE求解器为该步骤提供的
+    %               无量纲状态变量矩阵
+    %   ProductEnd: 将计算组成的塔端。
+    %               选项：HPEnd 和 LPEnd。HPEnd代表
+    %               重组分产品端，位于塔底，
+    %               而LPEnd代表轻组分产品端，位于
+    %               塔顶。
     %   
-    %   Output:
-    %   n_tot     : Average total number of moles at the desired end of the
-    %               requested step 
-    %   n_CO2     : Average number of moles of CO2 at the desired end of the
-    %               requested step 
-    %   Temp      : Average temperature at the desired end of the requested
-    %               step  
+    %   输出:
+    %   n_tot     : 所请求步骤的期望塔端的
+    %               平均总摩尔数
+    %   n_CO2     : 所请求步骤的期望塔端的
+    %               CO2平均摩尔数
+    %   Temp      : 所请求步骤的期望塔端的
+    %               平均温度
     %   
-    %% Check number of inputs
-        % If no value is given for the ProductEnd, this is set up by default
-        % as HPEnd, which is the heavy product end for any step.
+    %% 检查输入数量
+        % 如果没有为ProductEnd赋值，则默认设置为
+        % HPEnd，即任何步骤的重组分产品端。
         if nargin < 3
             ProductEnd = 'HPEnd';
         end
     %   
     %%  
-        % Differential section length of the column
+        % 塔的微分截面长度
         dz = L/N ;
         
-        % Dimensionalize all variables at the two ends of the columns
-        % Collect pressure, temperature and mole fraction at the column end
-        % of interest.
+        % 将塔两端的所有变量量纲化
+        % 收集感兴趣的塔端的压力、温度和摩尔分数。
         if strcmpi(ProductEnd, 'HPEnd') == 1
         
             P = state_vars(:, 1:2)*P_0     ;
             y = state_vars(:, N+3)         ;
             T = state_vars(:, 4*N+9)*T_0   ;
         
-            % Calculate the density of the gas [kg/m^3]
+            % 计算气体密度 [kg/m^3]
             ro_g = (y*MW_CO2 + (1-y)*MW_N2).*P(:, 1)/R./T ;
         
-            % calculate concentrations [mol/m^3]
+            % 计算浓度 [mol/m^3]
             C_tot = P(:, 1)/R./T ;
             C_CO2 = C_tot.*y     ;
         
@@ -617,37 +612,37 @@ end
             y = state_vars(:, 2*N+4)       ;
             T = state_vars(:, 5*N+10)*T_0  ;
         
-            % calculate the density of the gas [kg/m^3]
+            % 计算气体密度 [kg/m^3]
             ro_g = (y*MW_CO2 + (1-y)*MW_N2).*P(:, 2)/R./T ;
         
-            % calculate concentrations [mol/m^3]
+            % 计算浓度 [mol/m^3]
             C_tot = P(:, 2)/R./T ;
             C_CO2 = C_tot.*y     ;
         
         else
-            error('Please specify in which end of the column the composition will be calculated. OPTIONS: HPEnd and LPEnd')
+            error('请指定在哪一端计算组成。选项：HPEnd和LPEnd')
         end
         
-        % Calculate the pressure gradient at the edges [Pa/m]
+        % 计算边缘处的压力梯度 [Pa/m]
         dPdz = 2*(P(:, 2)-P(:, 1))/dz ;
         
-        % calculate superficial velocity using ergun equation [m/s]
+        % 使用Ergun方程计算表观速度 [m/s]
         viscous_term =  150*mu*(1-epsilon)^2/4/r_p^2/epsilon^3             ;
         kinetic_term = (1.75*(1-epsilon)/2/r_p/epsilon^3) * ro_g           ;
         v            = -sign(dPdz).*(-viscous_term+(abs(viscous_term^2+...  
                         4*kinetic_term.*abs(dPdz))).^(.5))/2./kinetic_term ;
         
-        % calculate molar fluxes [mol/m^2/s]
+        % 计算摩尔通量 [mol/m^2/s]
         ndot_tot = abs(v.*C_tot) ;
         ndot_CO2 = abs(v.*C_CO2) ;
         
-        % calculate total moles per column area [mol/m^2]
+        % 计算每单位塔面积的总摩尔数 [mol/m^2]
         n_tot = trapz(time, ndot_tot) ;
         n_CO2 = trapz(time, ndot_CO2) ;
         
-        % calculate the average temperature of the gas [K]. Only important
-        % if the emissions are being used in another step in the cycle (e.g.
-        % light reflux, light product pressurization)
+        % 计算气体平均温度 [K]。仅在
+        % 排放物用于循环中另一步骤时重要（例如
+        % 轻组分回流、轻组分产品加压）
         energy_flux_tot = ndot_tot.*T                  ;
         energy_tot      = trapz(time, energy_flux_tot) ;
         Temp            = energy_tot/n_tot         ;
@@ -655,20 +650,19 @@ end
     end 
     
     function [purity, recovery, mass_balance] = ProcessEvaluation(varargin)
-    %ProcessEvaluation: Calculate the process objectives
-    %   Calculate the purity and the recovery of the heavy product and the
-    %   overall mass balance of the heavy product for the cycle.
+    %ProcessEvaluation: 计算过程目标
+    %   计算重组分产品的纯度和回收率，以及
+    %   循环中重组分产品的总质量平衡。
     %   
-    %   Input:
-    %   a-e         : The dimensionless state variables of each step for the
-    %                 cycle
-    %   t1-t5       : The time steps for each step of the cycle
+    %   输入:
+    %   a-e         : 循环中每一步的无量纲状态变量
+    %   t1-t5       : 循环中每一步的时间步长
     %   
-    %   Output:
-    %   purity      : Purity of the heavy product
-    %   recovery    : Recovery of the heavy product
-    %   mass_balance: Mass balance of the heavy product (ensure all heavy
-    %                 product that enters, leaves. No accumulation)
+    %   输出:
+    %   purity      : 重组分产品的纯度
+    %   recovery    : 重组分产品的回收率
+    %   mass_balance: 重组分产品的质量平衡（确保所有
+    %                 进入的重组分产品都离开，无累积）
     %   
     %%  
         step  = cell(nargin/2,1) ;
@@ -678,7 +672,7 @@ end
             tau{st}  = varargin{nargin/2+st} ;
         end
     %   
-    %% Calculate total moles going in and out of column [mols/m^2]
+    %% 计算进出塔的总摩尔数 [mols/m^2]
         
         [~, n_CO2_CoCPres_HPEnd, ~]                       = StreamCompositionCalculator(tau{1}, step{1}, 'HPEnd') ;
         [~, n_CO2_ads_HPEnd, ~]                           = StreamCompositionCalculator(tau{2}, step{2}, 'HPEnd') ;
@@ -689,7 +683,7 @@ end
         [~, n_CO2_LR_LPEnd, ~]                            = StreamCompositionCalculator(tau{5}, step{5}, 'LPEnd') ;
         [n_tot_LR_HPEnd, n_CO2_LR_HPEnd, ~]               = StreamCompositionCalculator(tau{5}, step{5}, 'HPEnd') ;
 	%   
-    %% Calculate Purity, recovery and mass balance of the column
+    %% 计算塔的纯度、回收率和质量平衡
         
         purity       = (n_CO2_CnCDepres_HPEnd+(1-beta)*n_CO2_LR_HPEnd)/(n_tot_CnCDepres_HPEnd+(1-beta)*n_tot_LR_HPEnd) ;
         recovery     = (n_CO2_CnCDepres_HPEnd+(1-beta)*n_CO2_LR_HPEnd)/(n_CO2_CoCPres_HPEnd+n_CO2_ads_HPEnd)           ;
@@ -700,54 +694,54 @@ end
     end 
     
     function energy = CompressionEnergy(time, state_vars, Patm)
-    %CompressionEnergy: Calculate the  compression energy from entrance
-    %   Calculate the total energy required by the compressor to increase
-    %   the pressure to the desired value. Intended to be used with PSA
-    %   dimensionless simulations. 
+    %CompressionEnergy: 计算入口压缩能
+    %   计算压缩机将压力提高到
+    %   所需值所需的总能量。旨在与PSA
+    %   无量纲模拟一起使用。
     %   
-    %   Input:
-    %   time      : Dimensional time vector supplied by the ODE solver
-    %   state_vars: Dimensionless state variable matrix supplied for the
-    %               step from the ODE solver
-    %   Patm      : Atmospheric pressure [Pa]. This value can also be changed
-    %               if the flue gas is at a higher pressure. This value is
-    %               the cutoff for the compressor. Above this value, energy
-    %               is required. Below his value, no energy is required
+    %   输入:
+    %   time      : ODE求解器提供的有量纲时间向量
+    %   state_vars: ODE求解器为该步骤提供的
+    %               无量纲状态变量矩阵
+    %   Patm      : 大气压力 [Pa]。如果烟气
+    %               压力更高，此值也可以更改。此值是
+    %               压缩机的截止压力。高于此值时，
+    %               需要能量。低于此值时，不需要能量
     %   
-    %   Output:
-    %   energy    : Energy Requirments [kWh]  
+    %   输出:
+    %   energy    : 能量需求 [kWh]  
     %   
-    %% Check number of inputs
+    %% 检查输入数量
     
-        % Differential section length of the column
+        % 塔的微分截面长度
         dz = L/N  ;
         
-        % Compresor parameters
+        % 压缩机参数
         adiabatic_index       = 1.4  ;
         compressor_efficiency = 0.72 ;
         
-        % Calculate the pressure gradient at the edges [Pa/m]
+        % 计算边缘处的压力梯度 [Pa/m]
         P = state_vars(:, 1:2)*P_0     ;
         y = state_vars(:, N+3)         ;
         T = state_vars(:, 4*N+9)*T_0   ;
         
-        % Calculate the density of the gas [kg/m^3]
+        % 计算气体密度 [kg/m^3]
         ro_g = (y*MW_CO2 + (1-y)*MW_N2).*P(:, 1)/R./T ;
         
         dPdz = 2*(P(:, 2)-P(:, 1))/dz ;
         
-        % calculate superficial velocity using ergun equation [m/s]
+        % 使用Ergun方程计算表观速度 [m/s]
         viscous_term =  150*mu*(1-epsilon)^2/4/r_p^2/epsilon^3             ;
         kinetic_term = (1.75*(1-epsilon)/2/r_p/epsilon^3) * ro_g           ;
         v            = -sign(dPdz).*(-viscous_term+(abs(viscous_term^2+...  
                         4*kinetic_term.*abs(dPdz))).^(.5))/2./kinetic_term ;
         
-        % Calculate the compression ratio along with the impact it has on the
-        % energy requirments
+        % 计算压缩比及其对
+        % 能量需求的影响
         ratio_term = ((P(:, 1)/Patm).^((adiabatic_index-1)/adiabatic_index)-1) ;
         ratio_term = max(ratio_term, 0)                                        ;
         
-        %Calculate the total energy required by the compressor
+        %计算压缩机所需的总能量
         integral_term = abs(v.*P(:, 1).*ratio_term) ;
         
         energy = trapz(time, integral_term).*((adiabatic_index)./(adiabatic_index-1))./compressor_efficiency*pi()*r_in.^2 ;
@@ -756,52 +750,51 @@ end
     end
     
     function energy = VacuumEnergy(time, state_vars, Patm, ProductEnd)
-    %VacuumEnergy: Calculate the vacuum energy at both ends of the column
-    %   Calculate the total energy required by the vacuum pump to operate 
-    %   at the desired pressure. Intended to be used with PSA dimensionless 
-    %   simulations. 
+    %VacuumEnergy: 计算塔两端的真空能
+    %   计算真空泵在所需压力下运行
+    %   所需的总能量。旨在与PSA
+    %   无量纲模拟一起使用。
     %   
-    %   Input:
-    %   time      : Dimensional time vector supplied by the ODE solver
-    %   state_vars: Dimensionless state variable matrix supplied for the
-    %               step from the ODE solver
-    %   ProductEnd: End of the column where the composition will be 
-    %               calculated. OPTIONS: HPEnd and LPEnd. HPEnd stands for
-    %               heavy product end, which is at the bottom of the column,
-    %               and LPEnd stands for light product end, which is at the
-    %               top of the column.
-    %   Patm      : Atmospheric pressure [Pa].This value is the cutoff for 
-    %               the vacuum. Above this value, energy is not required.
-    %               Below his value, energy is required
+    %   输入:
+    %   time      : ODE求解器提供的有量纲时间向量
+    %   state_vars: ODE求解器为该步骤提供的
+    %               无量纲状态变量矩阵
+    %   ProductEnd: 将计算组成的塔端。
+    %               选项：HPEnd 和 LPEnd。HPEnd代表
+    %               重组分产品端，位于塔底，
+    %               而LPEnd代表轻组分产品端，位于
+    %               塔顶。
+    %   Patm      : 大气压力 [Pa]。此值是
+    %               真空泵的截止压力。高于此值时，不需要能量。
+    %               低于此值时，需要能量
     %   
-    %   Output:
-    %   energy    : Energy Requirments [kWh]
+    %   输出:
+    %   energy    : 能量需求 [kWh]
     %   
-    %% Check number of inputs
-        % If no value is given for the ProductEnd, this is set up by default
-        % as HPEnd, which is the heavy product end for any step.
+    %% 检查输入数量
+        % 如果没有为ProductEnd赋值，则默认设置为
+        % HPEnd，即任何步骤的重组分产品端。
         if nargin < 4
             ProductEnd = 'HPEnd';
         end
     %   
     %%  
-        % Differential section length of the column
+        % 塔的微分截面长度
         dz = L/N ;
         
-        % Vacuum parameters
+        % 真空泵参数
         adiabatic_index   = 1.4  ;
         vacuum_efficiency = 0.72 ;
         
-        % Dimensionalize all variables at the two ends of the columns
-        % Collect pressure, temperature and mole fraction at the column end
-        % of interest.
+        % 将塔两端的所有变量量纲化
+        % 收集感兴趣的塔端的压力、温度和摩尔分数。
         if strcmpi(ProductEnd, 'HPEnd') == 1
         
             P = state_vars(:, 1:2)*P_0     ;
             y = state_vars(:, N+3)         ;
             T = state_vars(:, 4*N+9)*T_0   ;
         
-            % Calculate the density of the gas [kg/m^3]
+            % 计算气体密度 [kg/m^3]
             ro_g = (y*MW_CO2 + (1-y)*MW_N2).*P(:, 1)/R./T ;
             
             P_out = P(:, 1) ;
@@ -812,32 +805,32 @@ end
             y = state_vars(:, 2*N+4)       ;
             T = state_vars(:, 5*N+10)*T_0  ;
         
-            % calculate the density of the gas [kg/m^3]
+            % 计算气体密度 [kg/m^3]
             ro_g = (y*MW_CO2 + (1-y)*MW_N2).*P(:, 2)/R./T ;
             
             P_out = P(:, 2) ;
         
         else
-            error('Please specify in which end of the column the composition will be calculated. OPTIONS: HPEnd and LPEnd')
+            error('请指定在哪一端计算组成。选项：HPEnd和LPEnd')
         end
         
-        % Calculate the pressure gradient at the edges [Pa/m]
+        % 计算边缘处的压力梯度 [Pa/m]
         dPdz = 2*(P(:, 2)-P(:, 1))/dz ;
         
-        % calculate superficial velocity using ergun equation [m/s]
+        % 使用Ergun方程计算表观速度 [m/s]
         viscous_term =  150*mu*(1-epsilon)^2/4/r_p^2/epsilon^3             ;
         kinetic_term = (1.75*(1-epsilon)/2/r_p/epsilon^3) * ro_g           ;
         v            = -sign(dPdz).*(-viscous_term+(abs(viscous_term^2+...  
                         4*kinetic_term.*abs(dPdz))).^(.5))/2./kinetic_term ;
         
-        % Calculate the compression ratio along with the impact it has on the
-        % energy requirments
+        % 计算压缩比及其对
+        % 能量需求的影响
         ratio_term = ((Patm./P_out).^((adiabatic_index-1)/adiabatic_index)-1) ;
         ratio_term = max(ratio_term, 0)                                       ;
         
         integral_term = abs(v.*P_out.*ratio_term) ;
         
-        %Calculate the total energy required by the compressor  
+        %计算压缩机所需的总能量
         energy=trapz(time, integral_term).*((adiabatic_index)./(adiabatic_index-1))./vacuum_efficiency*pi()*r_in.^2;
         
         energy = energy/3.6e6 ;
@@ -845,9 +838,9 @@ end
     end 
     
     function x_new = VelocityCorrection(x, n_hr, CorrectionEnd)
-    %% Check number of inputs
-        % If no value is given for the CorrectionEnd, this is set up by
-        % default as HPEnd, which is the heavy product end for any step.
+    %% 检查输入数量
+        % 如果没有为CorrectionEnd赋值，则默认设置为
+        % HPEnd，即任何步骤的重组分产品端。
         if nargin < 3
             CorrectionEnd = 'HPEnd';
         end
@@ -855,10 +848,10 @@ end
     %%  
         x_new = x   ;
         
-        % Differential section length of the column
+        % 塔的微分截面长度
         dz    = L/N ;
         
-        % Dimensionalize all variables at the two ends of the columns
+        % 将塔两端的所有变量量纲化
         if strcmpi(CorrectionEnd, 'HPEnd') == 1
         
             T = x(:, 4*N+9)*T_0 ;
@@ -872,7 +865,7 @@ end
             P = x(:, N+1)*P_0    ;
         
         else
-            error('Please specify in which end of the column the velocity correction will be calculated. OPTIONS: HPEnd and LPEnd')
+            error('请指定在哪一端进行速度校正。选项：HPEnd和LPEnd')
         end
         
         MW = MW_N2+(MW_CO2-MW_N2)*y ;
@@ -890,7 +883,7 @@ end
         a_p = a_1.*T*R       ;
         b_p = a_2_1.*MW/R./T ;
         
-        % Correction
+        % 校正
         if strcmpi(CorrectionEnd, 'HPEnd') == 1
         
             x_new(:, 1)   = ((a_p.*vh+P)./(1-b_p.*vh.*vh))./P_0 ;
@@ -914,62 +907,62 @@ end
         x_new(:,1)=(numb1*v_0+numb2_ent*v_0*v_0)*L/P_0/2/N + x(:,2);
     end 
 %   
-%% Jacobian patterns functions
+%% Jacobian模式函数
     
     function J_pres      = JacPressurization(N)
-    %JacPressurization: Calculates a Jacobian pattern for the step
-    %   This function calculates a jacobian pattern for the pressurization
-    %   step. This is to be used with the ode solver to decrease the 
-    %   computational time
+    %JacPressurization: 计算该步骤的Jacobian模式
+    %   本函数为加压步骤计算一个Jacobian模式。
+    %   这将被用于ode求解器以减少
+    %   计算时间
     %   
-    %   Input:
-    %       N     : Number of finite volumes used in the column
-    %   Output:
-    %       J_pres: The sparse Jacobian pattern scheme
+    %   输入:
+    %       N     : 塔中使用的有限体积单元数
+    %   输出:
+    %       J_pres: 稀疏Jacobian模式方案
     %   
-    %% Create individual segments
-        % Four band Jacobian scheme for advection terms
+    %% 创建独立分块
+        % 对流项的四带Jacobian方案
         B4 = ones(N+2, 4)                      ;
         A4 = full(spdiags(B4, -2:1, N+2, N+2)) ;
         
-        % One band Jacobian scheme for adsorption/desoprtion term
+        % 吸附/解吸项的单带Jacobian方案
         B1           = ones(N+2, 1)                   ;
         A1           = full(spdiags(B1, 0, N+2, N+2)) ;
         A1(1, 1)     = 0                              ;
         A1(N+2, N+2) = 0                              ;
         
-        % Zero band Jacobian Term
+        % 零带Jacobian项
         A0 = zeros(N+2) ;
 	%   
-    %% Create Overall Jacobian based on individual segments
+    %% 基于独立分块创建整体Jacobian
         J_pres = [ A4, A4, A1, A1, A4;... 
                    A4, A4, A1, A1, A4;... 
                    A1, A1, A1, A0, A1;... 
                    A1, A1, A0, A1, A1;... 
                    A4, A1, A1, A1, A4 ]  ;
 	%   
-    %% Modify based on boundary conditions
-        % Pressure Inlet
+    %% 基于边界条件进行修改
+        % 压力入口
         J_pres(1, :) = 0 ;
         J_pres(1, 1) = 1 ;
         
-        % Pressure Outlet
+        % 压力出口
         J_pres(N+2, :) = J_pres(N+1, :) ;
         J_pres(:, N+2) = 0              ;
         
-        % Mole Fraction Inlet
+        % 摩尔分数入口
         J_pres(N+3, :) = 0 ;
         J_pres(:, N+3) = 0 ;
         
-        % Mole Fraction Outlet
+        % 摩尔分数出口
         J_pres(2*N+4, :) = J_pres(2*N+3, :) ;
         J_pres(:, 2*N+4) = 0                ;
         
-        % Temperature Inlet
+        % 温度入口
         J_pres(4*N+9, :) = 0 ;
         J_pres(:, 4*N+9) = 0 ;
         
-        % Temperature Outlet
+        % 温度出口
         J_pres(5*N+10, :) = J_pres(5*N+9, :) ;
         J_pres(:, 5*N+10) = 0                ;
         
@@ -978,59 +971,59 @@ end
     end 
     
     function J_ads       = JacAdsorption(N)
-    %JacAdsorption: Calculates a Jacobian pattern for the step
-    %   This function calculates a jacobian pattern for the pressurization
-    %   step. This is to be used with the ode solver to decrease the 
-    %   computational time
+    %JacAdsorption: 计算该步骤的Jacobian模式
+    %   本函数为加压步骤计算一个Jacobian模式。
+    %   这将被用于ode求解器以减少
+    %   计算时间
     %   
-    %   Input:
-    %       N    : Number of finite volumes used in the column
-    %   Output:
-    %       J_ads: The sparse Jacobian pattern scheme
+    %   输入:
+    %       N    : 塔中使用的有限体积单元数
+    %   输出:
+    %       J_ads: 稀疏Jacobian模式方案
     %   
-    %% Create individual segments
-        % Four band Jacobian scheme for advection terms
+    %% 创建独立分块
+        % 对流项的四带Jacobian方案
         B4 = ones(N+2, 4)                      ;
         A4 = full(spdiags(B4, -2:1, N+2, N+2)) ;
         
-        % One band Jacobian scheme for adsorption/ desoprtion term
+        % 吸附/解吸项的单带Jacobian方案
         B1           = ones(N+2, 1)                   ;
         A1           = full(spdiags(B1, 0, N+2, N+2)) ;
         A1(1, 1)     = 0                              ;
         A1(N+2, N+2) = 0                              ;
         
-        % Zero band Jacobian Term
+        % 零带Jacobian项
         A0 = zeros(N+2) ;
 	%   
-    %% Create Overall Jacobian based on individual segments
+    %% 基于独立分块创建整体Jacobian
         J_ads = [ A4, A4, A1, A1, A4;... 
                   A4, A4, A1, A1, A4;... 
                   A1, A1, A1, A0, A1;... 
                   A1, A1, A0, A1, A1;... 
                   A4, A1, A1, A1, A4 ]  ;
 	%   
-    %% Modify based on boundary conditions
-        % Pressure Inlet
+    %% 基于边界条件进行修改
+        % 压力入口
         J_ads(1, :) = 0 ;
         J_ads(:, 1) = 0 ;
         
-        % Pressure Outlet
+        % 压力出口
         J_ads(N+2, :) = 0 ;
         J_ads(:, N+2) = 0 ;
         
-        % Mole Fraction Inlet
+        % 摩尔分数入口
         J_ads(N+3, :) = 0 ;
         J_ads(:, N+3) = 0 ;
         
-        % Mole Fraction Outlet
+        % 摩尔分数出口
         J_ads(2*N+4, :) = J_ads(2*N+3, :) ;
         J_ads(:, 2*N+4) = 0               ;
         
-        % Temperature Inlet
+        % 温度入口
         J_ads(4*N+9, :) = 0 ;
         J_ads(:, 4*N+9) = 0 ;
         
-        % Temperature Outlet
+        % 温度出口
         J_ads(5*N+10, :) = J_ads(5*N+9, :) ;
         J_ads(:, 5*N+10) = 0               ;
         
@@ -1039,24 +1032,24 @@ end
     end 
     
     function J_CnCdepres = Jac_CnCDepressurization(N)
-    %Jac_CnCDepressurization: Calculates a Jacobian pattern for the step
-    %   This function calculates a jacobian pattern for the pressurization
-    %   step. This is to be used with the ode solver to decrease the 
-    %   computational time
+    %Jac_CnCDepressurization: 计算该步骤的Jacobian模式
+    %   本函数为加压步骤计算一个Jacobian模式。
+    %   这将被用于ode求解器以减少
+    %   计算时间
     %   
-    %   Input:
-    %       N          : Number of finite volumes used in the column
-    %   Output:
-    %       J_CnCdepres: The sparse Jacobian pattern scheme
+    %   输入:
+    %       N          : 塔中使用的有限体积单元数
+    %   输出:
+    %       J_CnCdepres: 稀疏Jacobian模式方案
     %   
-    %% Create individual segments
-        % Four band Jacobian scheme for advection terms
+    %% 创建独立分块
+        % 对流项的四带Jacobian方案
         B4         = ones(N+2, 4)                      ;
         A4         = full(spdiags(B4, -1:2, N+2, N+2)) ;
         A4(1, :)   = A4(2, :)                          ;
         A4(N+2, :) = A4(N+1, :)                        ;
         
-        % One band Jacobian scheme for adsorption/ desoprtion term
+        % 吸附/解吸项的单带Jacobian方案
         B1           = ones(N+2, 1)                   ;
         A1           = full(spdiags(B1, 0, N+2, N+2)) ;
         A1(1, 1)     = 0                              ;
@@ -1064,39 +1057,39 @@ end
         A1(1, 2)     = 1                              ;
         A1(N+2, N+1) = 1                              ;
         
-       % Zero band Jacobian Term
+       % 零带Jacobian项
         A0 = zeros(N+2) ;
 	%   
-    %% Create Overall Jacobian based on individual segments
+    %% 基于独立分块创建整体Jacobian
         J_CnCdepres = [ A4, A4, A1, A1, A4;... 
                         A4, A4, A1, A1, A4;... 
                         A1, A1, A1, A0, A1;... 
                         A1, A1, A0, A1, A1;... 
                         A4, A1, A1, A1, A4 ]  ;
 	%   
-    %% Modify based on boundary conditions
-        % Pressure Inlet
+    %% 基于边界条件进行修改
+        % 压力入口
         J_CnCdepres(1, :) = 0 ;
         J_CnCdepres(1, 1) = 1 ;
         
-        % Pressure Outlet
+        % 压力出口
         J_CnCdepres(N+2, :) = J_CnCdepres(N+1, :) ;
         
-        % Mole Fraction Inlet
+        % 摩尔分数入口
         J_CnCdepres(N+3, :) = J_CnCdepres(N+4, :) ;
         
-        % Mole Fraction Outlet
+        % 摩尔分数出口
         J_CnCdepres(2*N+4) = J_CnCdepres(2*N+3) ;
         
-        % Molar Loading
+        % 摩尔负载量
         J_CnCdepres(2*N+5, :)       = 0 ;
         J_CnCdepres(3*N+6:3*N+7, :) = 0 ;
         J_CnCdepres(4*N+8, :)       = 0 ;
         
-        % Temperature Inlet
+        % 温度入口
         J_CnCdepres(4*N+9, :) = J_CnCdepres(4*N+10, :) ;
         
-        %Temperature Outlet
+        %温度出口
         J_CnCdepres(5*N+10, :) = J_CnCdepres(5*N+9) ;
         
         J_CnCdepres = sparse(J_CnCdepres) ;
@@ -1104,24 +1097,24 @@ end
     end 
     
     function J_LR        = Jac_LightReflux(N)
-    %Jac_LightReflux: Calculates a Jacobian pattern for the step
-    %   This function calculates a jacobian pattern for the pressurization
-    %   step. This is to be used with the ode solver to decrease the 
-    %   computational time
+    %Jac_LightReflux: 计算该步骤的Jacobian模式
+    %   本函数为加压步骤计算一个Jacobian模式。
+    %   这将被用于ode求解器以减少
+    %   计算时间
     %   
-    %   Input:
-    %       N   : Number of finite volumes used in the column
-    %   Output:
-    %       J_LR: The sparse Jacobian pattern scheme
+    %   输入:
+    %       N   : 塔中使用的有限体积单元数
+    %   输出:
+    %       J_LR: 稀疏Jacobian模式方案
     %   
-    %% Create individual segments
-        % Four band Jacobian scheme for advection terms
+    %% 创建独立分块
+        % 对流项的四带Jacobian方案
         B4         = ones(N+2, 4)                      ;
         A4         = full(spdiags(B4, -1:2, N+2, N+2)) ;
         A4(1, :)   = A4(2, :)                          ;
         A4(N+2, :) = A4(N+1, :)                        ;
         
-        % One band Jacobian scheme for adsorption/ desoprtion term
+        % 吸附/解吸项的单带Jacobian方案
         B1           = ones(N+2, 1)                   ;
         A1           = full(spdiags(B1, 0, N+2, N+2)) ;
         A1(1, 1)     = 0                              ;
@@ -1129,51 +1122,51 @@ end
         A1(1, 2)     = 1                              ;
         A1(N+2, N+1) = 1                              ;
         
-        % Zero band Jacobian Term
+        % 零带Jacobian项
         A0 = zeros(N+2) ;
 	%   
-    %% Create Overall Jacobian based on individual segments
+    %% 基于独立分块创建整体Jacobian
         J_LR = [ A4, A1, A1, A1, A4;... 
                  A4, A4, A1, A1, A4;... 
                  A1, A1, A1, A0, A1;... 
                  A1, A1, A0, A1, A1;... 
                  A4, A1, A1, A1, A4 ]  ;
 	%   
-    %% Modify based on boundary conditions
-        % Pressure Inlet
+    %% 基于边界条件进行修改
+        % 压力入口
         J_LR(1, :) = 0 ;
         J_LR(1, 1) = 1 ;
         
-        % Pressure Outlet
+        % 压力出口
         J_LR(N+2, :) = J_LR(N+1, :) ;
         
-        % Mole Fraction Inlet
+        % 摩尔分数入口
         J_LR(N+3, :) = J_LR(N+4, :) ;
         
-        % Mole Fraction Outlet
+        % 摩尔分数出口
         J_LR(2*N+4) = J_LR(2*N+3) ;
         
-        % Molar Loading
+        % 摩尔负载量
         J_LR(2*N+5, :)       = 0 ;
         J_LR(3*N+6:3*N+7, :) = 0 ;
         J_LR(4*N+8, :)       = 0 ;
         
-        % Temperature Inlet
+        % 温度入口
         J_LR(4*N+9, :) = J_LR(4*N+10, :) ;
         
-        % Temperature Outlet
+        % 温度出口
         J_LR(5*N+10, :) = J_LR(5*N+9) ;
         
         J_LR = sparse(J_LR) ;
 	%   
     end 
 %   
-%% Press and Depress Termination functions
+%% 加压和降压终止函数
     
     function [value, isterminal, direction] = PressurizationStop(~, y)
-    %PressurizationStop: Function used with ode15s to stop the step
-    %   Termination function for the depressurization step to stop the
-    %   solution once the desired pressure is reached
+    %PressurizationStop: 用于ode15s以停止步骤的函数
+    %   降压步骤的终止函数，一旦达到
+    %   所需压力，就停止求解
     %
     %%  
         PressureOutlet = y(N+2)              ;
@@ -1184,9 +1177,9 @@ end
     end 
     
     function [value, isterminal, direction] = CnCDepressurizationStop(~, y)
-    %CnCDepressurizationStop: Function used with ode15s to stop the step
-    %   Termination function for the CnC depressurization step to stop the
-    %   solution once the desired pressure is reached
+    %CnCDepressurizationStop: 用于ode15s以停止步骤的函数
+    %   并流降压步骤的终止函数，一旦达到
+    %   所需压力，就停止求解
     %
     %%  
         PressureOutlet =  real(y(N+2)) ;
@@ -1196,4 +1189,4 @@ end
     %   
     end 
 %   
-end 
+end

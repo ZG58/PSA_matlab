@@ -1,19 +1,15 @@
 function q=Isotherm(y, P, T, isotherm_parameters)
-%hypotheticalisotherm- Calculate the molar loadings of a two component mixture
-%   Calculate the total loading of a two component mixture loading. It is
-%   assumed that the isotherm is able to be represented by a dual site
-%   langmuir competitive isotherm with temperature dependent parameters.
-%   The isotherm can be in terms of concentration [mol/m^3] or Partial
-%   pressure [Pa]. 
-%   Inputs:
-%   y: mole fraction of component one [-]. It is assumed the mole fraction
-%   of component 2 is 1-y
-%   P: Total pressure of the gas [Pa]
-%   T: Temperature of the gas [K]
-%   isothermparams: Parameters for the isotherm. View script Input_PSA for
-%   structure
-%   input_units: specify whether the isotherm is in terms of concentration
-%   of partial pressure
+%hypotheticalisotherm- 计算双组分混合物的摩尔负载量
+%   计算双组分混合物的总负载量。
+%   假设该等温线能用双活性位Langmuir竞争性吸附等温线表示，
+%   且其参数与温度相关。
+%   该等温线可以基于浓度 [mol/m^3] 或分压 [Pa] 表示。
+%   输入:
+%   y: 组分一的摩尔分数 [-]。假设组分二的摩尔分数为1-y
+%   P: 气体的总压力 [Pa]
+%   T: 气体的温度 [K]
+%   isothermparams: 等温线参数。其结构请参见 Input_PSA 脚本
+%   input_units: 指定等温线是基于浓度还是分压
 
     R=8.314;
 
