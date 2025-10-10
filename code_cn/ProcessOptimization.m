@@ -4,7 +4,7 @@ delete(gcp('nocreate'));
 parpool('local', 8);
 
 addpath('CycleSteps')
-addpath('GA_files')
+addpath('NSGA-II')
 
 load('Params')
 
@@ -33,15 +33,15 @@ options.outputfile = 'UTSA-16_Process.txt' ;
 options.numObj  = 2 ;                                    % 目标数量
 options.numVar  = 6 ;                                    % 设计变量数量
 options.numCons = 3 ;                                    % 约束数量
-options.lb      = [1e5,  10, 0.01, 0.1, 0, 1e4]   ;               % x的下界
-options.ub      = [10e5, 1000, 0.99, 2, 1, 5e4]  ;               % x的上界
+options.lb      = [1e5,  10, 0.01, 0.1, 0, 1e4]   ;      % x的下界
+options.ub      = [10e5, 1000, 0.99, 2, 1, 5e4]  ;       % x的上界
 options.nameObj = {'-purity','recovery'} ;               % 目标名称会显示在GUI窗口中。
 options.objfun  = Function               ;               % 目标函数句柄
 
 options.useParallel = 'yes' ;                            % 此处并行计算不是必需的
 options.poolsize     = 8   ;                             % 工作进程数
 
-result = nsga2(options)     ;                            % 开始优化！
+result = nsga2(options)     ;                          % 开始优化！
 
 
 end

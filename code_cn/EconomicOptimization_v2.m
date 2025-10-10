@@ -3,7 +3,7 @@ format long
 parpool('local', 12);
 
 addpath('CycleSteps')
-addpath('GA_files')
+addpath('NSGA-II')
 
 load('Params')
 
