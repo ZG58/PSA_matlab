@@ -1,7 +1,7 @@
 function pop= Pop_Override(opt, pop, varargin)
-% 函数: pop= Pop_Override(opt, pop, varargin)
-% 描述: 从已有变量中加载种群。不会因先前结果的
-% 约束数量不匹配而拒绝
+% Function: pop = Pop_Override(opt, pop, varargin)
+% Description: Load population from exist variables. Does not reject based
+% on number of constraints from previous results
 
     popsize_new=opt.popsize;
 
@@ -14,7 +14,7 @@ function pop= Pop_Override(opt, pop, varargin)
     numb_var_supp=size(variable, 2);
 
     if numb_var_sim ~= numb_var_supp
-        error('NSGA2:OptModelError', '提供的变量数量与要求的数量不相等');
+        error('NSGA2:OptModelError', 'Number of variables supplied does not equal what is requested');
     end
 
     pop_size=opt.popsize;
@@ -35,8 +35,8 @@ function pop= Pop_Override(opt, pop, varargin)
     
     
     function pop = initpopUniform(opt, pop)
-    % 函数: pop = initpopUniform(opt, pop)
-    % 描述: 使用随机数初始化种群
+    % Function: pop = initpopUniform(opt, pop)
+    % Description: Initialize population using random number
     %
     %    Copyright 2011 by LSSSSWC
     %    Revision: 1.0  Data: 2011-07-01
@@ -52,14 +52,14 @@ function pop= Pop_Override(opt, pop, varargin)
         for i = 1:popsize
             var = lb + rand(1, nVar) .* (ub-lb);
 
-            % 如果设计变量是整数，则四舍五入到最近的整数
+            % if desing variable is integer, round to the nearest integer
             for v = 1:nVar
                 if( type(v) == 2)
                     var(v) = round(var(v));
                 end
             end
 
-            % 限制在上下界内
+            % limit in the lower and upper bound
             var = varlimit(var, lb, ub);
 
             pop(i).var = var;

@@ -1,11 +1,11 @@
 function opt = output2file(opt, state, pop, type, varargin)
-% 函数: opt = output2file(opt, state, pop, type, varargin)
-% 描述: 将种群'pop'输出到文件。文件名由
-% 'opt.outputfile' 字段指定。
-% 参数: 
-%   type : 输出类型。 -1 = 最后一次调用，关闭已打开的文件。
-%          其他值(或不存在) = 正常输出
-%   varargin : 在 options.outputfuns 元胞数组中定义的任何参数。
+% Function: opt = output2file(opt, state, pop, type, varargin)
+% Description: Output the population 'pop' to file. The file name is
+% specified by 'opt.outputfile' field.
+% Parameters: 
+%   type : output type.  -1 = the last call, close the opened file. 
+%          others(or no exist) = normal output
+%   varargin : any parameter define in the options.outputfuns cell array.
 %
 %         LSSSSWC, NWPU
 %    Revision: 1.2  Data: 2011-07-13
@@ -13,7 +13,7 @@ function opt = output2file(opt, state, pop, type, varargin)
 
 
 if(isempty(opt.outputfile))
-    return;  % 未指定输出文件名，直接返回
+    return;  % the output file name is not specified, return directly
 end
 
 if( isfield(opt, 'outputfileFID') )
@@ -23,16 +23,16 @@ else
 end
 
 %*************************************************************************
-% 1.打开输出文件并输出一些种群信息
+% 1.Open the output file and output some population info
 %*************************************************************************
 if( isempty(fid) )
     fid = fopen(opt.outputfile, 'w');
     if( fid == 0)
-        error('NSGA2:OutputFileError', '无法打开输出文件!! 文件名:%s', opt.outputfile);
+        error('NSGA2:OutputFileError', 'Can not open output file!! file name:%s', opt.outputfile);
     end
     opt.outputfileFID = fid;
     
-    % 输出一些信息
+    % Output some infomation
     fprintf(fid, '#NSGA2\r\n');
 
     fprintf(fid, 'popsize %d\r\n', opt.popsize);
@@ -41,7 +41,7 @@ if( isempty(fid) )
     fprintf(fid, 'numObj %d\r\n', opt.numObj);
     fprintf(fid, 'numCons %d\r\n', opt.numCons);
     
-    % 输出状态字段名称
+    % Output state field names
     fprintf(fid, 'stateFieldNames\t');
     names = fieldnames(state);
     for i = 1:length(names)
@@ -53,7 +53,7 @@ if( isempty(fid) )
 end
 
 %*************************************************************************
-% 2. 如果这是最后一次调用，关闭输出文件
+% 2. If this is the last call, close the output file
 %*************************************************************************
 if(type == -1)
     fclose(fid);
@@ -62,11 +62,11 @@ if(type == -1)
 end
 
 %*************************************************************************
-% 3. 将种群输出到文件
+% 3. Output population to file
 %*************************************************************************
 fprintf(fid, '#Generation %d / %d\r\n', state.currentGen, opt.maxGen);
 
-% 输出每个状态字段
+% output each state field
 names = fieldnames(state);
 for i = 1:length(names)
     fprintf(fid, '%s\t%g\r\n', names{i}, getfield(state, names{i}));
@@ -98,3 +98,8 @@ for p = 1 : opt.popsize
 end
 
 fprintf(fid, '\r\n\r\n\r\n');
+
+
+
+
+

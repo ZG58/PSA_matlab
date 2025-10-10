@@ -1,10 +1,10 @@
 function opt = callOutputfuns(opt, state, pop, type)
-% 函数: opt = callOutputfuns(opt, state, pop, type)
-% 描述: 调用输出函数(如果存在)。
-% 参数: 
-%   type : 输出类型。
-%       -1 = 最后一次调用 (例如关闭文件)
-%       其他值(或不存在) = 正常输出
+% Function: opt = callOutputfuns(opt, state, pop, type)
+% Description: Call output function(if exist).
+% Parameters: 
+%   type : output type.  
+%       -1 = the last call (close file for instance)
+%       other values(or no exist) = normal output
 %
 %         LSSSSWC, NWPU
 %    Revision: 1.1  Data: 2011-07-13
@@ -12,7 +12,7 @@ function opt = callOutputfuns(opt, state, pop, type)
 
 
 if(nargin <= 3)
-    type = 0;   % 正常输出
+    type = 0;   % normal output
 end
 
 
@@ -20,3 +20,5 @@ if( ~isempty(opt.outputfuns) )
     fun = opt.outputfuns{1};
     opt = fun(opt, state, pop, type, opt.outputfuns{2:end});
 end
+
+

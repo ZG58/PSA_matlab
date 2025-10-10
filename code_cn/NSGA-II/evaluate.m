@@ -1,21 +1,22 @@
 function [pop, state] = evaluate(opt, pop, state, varargin)
-% 函数: [pop, state] = evaluate(opt, pop, state, varargin)
-% 描述: 评估种群中每个个体的目标函数值。
+% Function: [pop, state] = evaluate(opt, pop, state, varargin)
+% Description: Evaluate the objective functions of each individual in the
+%   population.
 %
 %         LSSSSWC, NWPU
 %    Revision: 1.0  Data: 2011-04-20
 %*************************************************************************
 
 N = length(pop);
-allTime = zeros(N, 1);  % allTime : 用于计算平均评估时间
+allTime = zeros(N, 1);  % allTime : use to calculate average evaluation times
 
 %*************************************************************************
-% 并行评估目标函数
+% Evaluate objective function in parallel
 %*************************************************************************
 if( strcmpi(opt.useParallel, 'yes') == 1 )
 %     curPoolInfo = gcp('nocreate');
 %     
-%     % 检查并行计算池（parpool）是否已开启
+%     % Check if there is a parpool open or not
 %     [Pooldatasize, ~]=size(curPoolInfo);
 %     if Pooldatasize == 0
 %         curPoolsize=0;
@@ -23,14 +24,14 @@ if( strcmpi(opt.useParallel, 'yes') == 1 )
 %         curPoolsize = curPoolInfo.NumWorkers;
 %     end
 % 
-%     % 当前没有开启的工作进程
+%     % There isn't opened worker process
 %     if(curPoolsize == 0)
 %         if(opt.poolsize == 0)
 %             parpool open local;
 %         else
 %             parpool(opt.poolsize);
 %         end
-%     % 关闭并重建工作进程
+%     % Close and recreate worker process
 %     else
 %         if(opt.poolsize ~= curPoolsize)
 %             delete(gcp);
@@ -39,22 +40,22 @@ if( strcmpi(opt.useParallel, 'yes') == 1 )
 %     end
 
     parfor i = 1:N
-        fprintf('\n正在评估目标函数... 第 %d 代 / 共 %d 代, 个体 %d / 共 %d \n',state.currentGen, opt.maxGen, i, N);
+        fprintf('\nEvaluating the objective function... Generation: %d / %d, Individual: %d / %d \n',state.currentGen, opt.maxGen, i, N);
         [pop(i), allTime(i)] = evalIndividual(pop(i), opt.objfun, varargin{:});
     end
 
 %*************************************************************************
-% 串行评估目标函数
+% Evaluate objective function in serial
 %*************************************************************************
 else
     for i = 1:N
-        fprintf('\n正在评估目标函数... 第 %d 代 / 共 %d 代, 个体 %d / 共 %d \n',state.currentGen, opt.maxGen, i, N);
+        fprintf('\nEvaluating the objective function... Generation: %d / %d, Individual: %d / %d \n',state.currentGen, opt.maxGen, i, N);
         [pop(i), allTime(i)] = evalIndividual(pop(i), opt.objfun, varargin{:});
     end
 end
 
 %*************************************************************************
-% 统计
+% Statistics
 %*************************************************************************
 state.avgEvalTime   = sum(allTime) / length(allTime);
 state.evaluateCount = state.evaluateCount + length(pop);
@@ -63,8 +64,8 @@ state.evaluateCount = state.evaluateCount + length(pop);
 
 
 function [indi, evalTime] = evalIndividual(indi, objfun, varargin)
-% 函数: [indi, evalTime] = evalIndividual(indi, objfun, varargin)
-% 描述: 评估单个目标函数。
+% Function: [indi, evalTime] = evalIndividual(indi, objfun, varargin)
+% Description: Evaluate one objective function.
 %
 %         LSSSSWC, NWPU
 %    Revision: 1.1  Data: 2011-07-25
@@ -74,7 +75,7 @@ tStart = tic;
 [y, cons] = objfun( indi.var, varargin{:} );
 evalTime = toc(tStart);
 
-% 保存目标函数值和约束违反情况
+% Save the objective values and constraint violations
 indi.obj = y;
 
 if( ~isempty(indi.cons) )
@@ -89,3 +90,5 @@ if( ~isempty(indi.cons) )
     end
 
 end
+
+

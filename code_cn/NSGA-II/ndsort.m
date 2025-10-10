@@ -1,6 +1,6 @@
 function [opt, pop] = ndsort(opt, pop)
-% 函数: [opt, pop] = ndsort(opt, pop)
-% 描述: 快速非支配排序。
+% Function: [opt, pop] = ndsort(pop)
+% Description: Fast non-dominated sort.
 %
 %         LSSSSWC, NWPU
 %    Revision: 1.4  Data: 2011-07-26
@@ -10,11 +10,11 @@ function [opt, pop] = ndsort(opt, pop)
 
 
 %*************************************************************************
-% 1. 初始化变量
-%   indi.np：支配该个体的个体数量
-%   indi.sp(:): 该个体所支配的个体集合
+% 1. Initialize variables
+%   indi.np：number of individuals which dominate this individual
+%   indi.sp(:): a set of individuals that this individual dominate
 %*************************************************************************
-N = length(pop);    %种群大小
+N = length(pop);    %popsize
 ind = repmat(struct('np',0, 'sp', []),[1,N]);
 
 for i = 1:N
@@ -25,11 +25,12 @@ end
 
 
 %*************************************************************************
-% 2. 快速非支配排序
+% 2. fast non-dominated sort
 %*************************************************************************
-% 计算支配矩阵以提高效率。
+% Calculate the domination matrix for improving the efficiency.
 
-% 注意: 在我的电脑上，Matlab 2010b版本中，"for"语句比"vertcat"语句效率更高。我不知道为什么。(LSSSSWC, 2011-07-25)
+% NOTE: The "for" statement is more efficient than "vertcat" statement in my computer
+% on Matlab 2010b. I don't know why.(LSSSSWC, 2011-07-25)
 nViol   = zeros(N, 1);
 violSum = zeros(N, 1);
 for i = 1:N
@@ -40,16 +41,16 @@ end
 % violSum = vertcat(pop(:).violSum);
 
 obj     = vertcat(pop(:).obj);
-domMat  = calcDominationMatrix(nViol, violSum, obj); % 用于提高效率的支配矩阵
+domMat  = calcDominationMatrix(nViol, violSum, obj); % domination matrix for efficiency
 
 
-% 计算每个个体的np和sp
+% Compute np and sp of each indivudal
 for p = 1:N-1
     for q = p+1:N
-        if(domMat(p, q) == 1)          % p 支配 q
+        if(domMat(p, q) == 1)          % p dominate q
             ind(q).np = ind(q).np + 1;
             ind(p).sp = [ind(p).sp , q];
-        elseif(domMat(p, q) == -1)     % q 支配 p
+        elseif(domMat(p, q) == -1)     % q dominate p
             ind(p).np = ind(p).np + 1;
             ind(q).sp = [ind(q).sp , p];
         end
@@ -57,10 +58,10 @@ for p = 1:N-1
 end
 
 
-% 第一个前沿（等级 = 1）
-front(1).f = [];    % 'front'结构体中只有一个字段'f'。
-                    % 这是故意的，因为每个前沿中的
-                    % 个体数量是不同的。
+% The first front(rank = 1)
+front(1).f = [];    % There are only one field 'f' in structure 'front'.
+                    % This is intentional because the number of individuals
+                    % in the front is difference.
 for i = 1:N
     if( ind(i).np == 0 )
         pop(i).rank = 1;
@@ -68,8 +69,8 @@ for i = 1:N
     end
 end
 
-% 计算每个个体的帕累托等级，即 pop(:).rank
-fid = 1;        % 帕累托前沿ID
+% Calculate pareto rank of each individuals, viz., pop(:).rank 
+fid = 1;        %pareto front ID
 while( ~isempty(front(fid).f) )
     Q = [];
     for p = front(fid).f
@@ -85,12 +86,12 @@ while( ~isempty(front(fid).f) )
     
     front(fid).f = Q;
 end
-front(fid) = [];    % 删除最后一个空的前沿集合
+front(fid) = [];    % delete the last empty front set
 
 
 
 %*************************************************************************
-% 3. 计算距离
+% 3. Calculate the distance
 %*************************************************************************
 if(isempty(opt.refPoints))
     pop = calcCrowdingDistance(opt, pop, front);
@@ -103,15 +104,15 @@ end
 
 
 function domMat = calcDominationMatrix(nViol, violSum, obj)
-% 函数: domMat = calcDominationMatrix(nViol, violSum, obj)
-% 描述: 计算支配矩阵，该矩阵使用约束支配关系指定两个个体
-%   之间的支配关系。
+% Function: domMat = calcDominationMatrix(nViol, violSum, obj)
+% Description: Calculate the domination maxtir which specified the domination
+%   releation between two individual using constrained-domination.
 %
-% 返回: 
-%   domMat(N,N) : 支配矩阵
-%       domMat(p,q)=1  : p 支配 q
-%       domMat(p,q)=-1 : q 支配 p
-%       domMat(p,q)=0  : 互不支配
+% Return: 
+%   domMat(N,N) : domination matrix
+%       domMat(p,q)=1  : p dominates q
+%       domMat(p,q)=-1 : q dominates p
+%       domMat(p,q)=0  : non dominate
 %
 %    Copyright 2011 by LSSSSWC
 %    Revision: 1.0  Data: 2011-07-13
@@ -125,13 +126,13 @@ domMat  = zeros(N, N);
 for p = 1:N-1
     for q = p+1:N
         %*************************************************************************
-        % 1. p 和 q 都是可行的
+        % 1. p and q are both feasible
         %*************************************************************************
         if(nViol(p) == 0 && nViol(q)==0)
             pdomq = false;
             qdomp = false;
             for i = 1:numObj
-                if( obj(p, i) < obj(q, i) )         % 目标函数是最小化！
+                if( obj(p, i) < obj(q, i) )         % objective function is minimization!
                     pdomq = true;
                 elseif(obj(p, i) > obj(q, i))
                     qdomp = true;
@@ -144,17 +145,17 @@ for p = 1:N-1
                 domMat(p, q) = -1;
             end
         %*************************************************************************
-        % 2. p 可行, q 不可行
+        % 2. p is feasible, and q is infeasible
         %*************************************************************************
         elseif(nViol(p) == 0 && nViol(q)~=0)
             domMat(p, q) = 1;
         %*************************************************************************
-        % 3. q 可行, p 不可行
+        % 3. q is feasible, and p is infeasible
         %*************************************************************************
         elseif(nViol(p) ~= 0 && nViol(q)==0)
             domMat(p, q) = -1;
         %*************************************************************************
-        % 4. p 和 q 都是不可行的
+        % 4. p and q are both infeasible
         %*************************************************************************
         else
             if(violSum(p) < violSum(q))
@@ -173,32 +174,33 @@ domMat = domMat - domMat';
 
 
 function [opt, pop] = calcPreferenceDistance(opt, pop, front)
-% 函数: [opt, pop] = calcPreferenceDistance(opt, pop, front)
-% 描述: 计算R-NSGA-II中使用的'偏好距离'。
-% 返回: 
-%   opt : 仅当 opt.refUseNormDistance=='ever' 时，此结构体可能被修改。
+% Function: [opt, pop] = calcPreferenceDistance(opt, pop, front)
+% Description: Calculate the 'preference distance' used in R-NSGA-II.
+% Return: 
+%   opt : This structure may be modified only when opt.refUseNormDistance=='ever'.
 %
 %    Copyright 2011 by LSSSSWC
 %    Revision: 1.1  Data: 2011-07-26
 %*************************************************************************
 
 %*************************************************************************
-% 1. 初始化
+% 1. Initialization
 %*************************************************************************
-numObj = length( pop(1).obj );  % 目标数量
+numObj = length( pop(1).obj );  % number of objectives
 
 refPoints = opt.refPoints;
-refWeight = opt.refWeight;      % 目标权重因子
+refWeight = opt.refWeight;      % weight factor of objectives
 if(isempty(refWeight))
     refWeight = ones(1, numObj);
 end
 epsilon = opt.refEpsilon;
 numRefPoint = size(refPoints, 1);
 
-% 决定归一化因子
-bUseFrontMaxMin = false;    % bUseFrontMaxMin : 是否使用前沿中的最大和最小值作为归一化因子。
+% Determine the normalized factors
+bUseFrontMaxMin = false;    % bUseFrontMaxMin : If use the maximum and minimum value in the front as normalized factor.
 if( strcmpi(opt.refUseNormDistance, 'ever') )
-    % 1) 找到每个目标可能的最大和最小值（不限于当前种群）
+    % 1) Find possiable (not current population) maximum and minimum value
+    %     of each objective.
     obj = vertcat(pop.obj);
     if( ~isfield(opt, 'refObjMax_tmp') )
         opt.refObjMax_tmp = max(obj);
@@ -219,39 +221,39 @@ if( strcmpi(opt.refUseNormDistance, 'ever') )
     objMaxMin = opt.refObjMax_tmp - opt.refObjMin_tmp;
     clear obj
 elseif( strcmpi(opt.refUseNormDistance, 'front') )
-    % 2) 不使用归一化的欧氏距离。
+    % 2) Do not use normalized Euclidean distance.
     bUseFrontMaxMin = true;
 elseif( strcmpi(opt.refUseNormDistance, 'no') )
-    % 3) 不使用归一化的欧氏距离。
+    % 3) Do not use normalized Euclidean distance.
     objMaxMin = ones(1,numObj);
 else
-    % 3) 错误
+    % 3) Error
     error('NSGA2:ParamError', ...
-        '不支持的参数: options.refUseNormDistance="%s", 只支持 "yes" 或 "no"',...
+        'No support parameter: options.refUseNormDistance="%s", only "yes" or "no" are supported',...
         opt.refUseNormDistance);
 end
 
 
 %*************************************************************************
-% 2. 计算偏好距离 pop(:).prefDistance
+% 2. Calculate preference distance pop(:).prefDistance
 %*************************************************************************
 for fid = 1:length(front)
-    % 步骤1: 计算每个前沿中的加权欧氏距离
-    idxFront = front(fid).f;            % idxFront : 当前前沿中个体的索引
-    numInd = length(idxFront);          % numInd : 当前前沿中的个体数量
-    popFront = pop(idxFront);           % popFront : 在前沿fid中的个体
+    % Step1: Calculate the weighted Euclidean distance in each front
+    idxFront = front(fid).f;            % idxFront : index of individuals in current front
+    numInd = length(idxFront);          % numInd : number of individuals in current front
+    popFront = pop(idxFront);           % popFront : individuals in front fid
 
-    objFront = vertcat(popFront.obj);   % objFront : 所有个体的全部目标值
+    objFront = vertcat(popFront.obj);   % objFront : the whole objectives of all individuals
 
     if(bUseFrontMaxMin)
-        objMaxMin = max(objFront) - min(objFront); % objMaxMin : 当前前沿中的归一化因子
+        objMaxMin = max(objFront) - min(objFront); % objMaxMin : the normalized factor in current front
     end
 
-    % normDistance : 加权归一化欧氏距离
+    % normDistance : weighted normalized Euclidean distance
     normDistance = calcWeightNormDistance(objFront, refPoints, objMaxMin, refWeight);
     
     
-    % 步骤2: 分配偏好距离
+    % Step2: Assigned preference distance
     prefDistanceMat = zeros(numInd, numRefPoint);
     for ipt = 1:numRefPoint
         [~,ix] = sort(normDistance(:, ipt));
@@ -261,31 +263,31 @@ for fid = 1:length(front)
     clear ix
 
     
-    % 步骤3: Epsilon 清除策略
-    idxRemain = 1:numInd;           % idxRemain : 未处理个体的索引
+    % Step3: Epsilon clearing strategy
+    idxRemain = 1:numInd;           % idxRemain : index of individuals which were not processed
     while(~isempty(idxRemain))
-        % 1. 从剩余个体中选择一个
+        % 1. Select one individual from remains
         objRemain = objFront( idxRemain, :);
         selIdx = randi( [1,length(idxRemain)] );
         selObj = objRemain(selIdx, :);
 
-        % 2. 计算归一化欧氏距离
-        % distanceToSel : 到所选点的归一化欧氏距离
+        % 2. Calc normalized Euclidean distance
+        % distanceToSel : normalized Euclidean distance to the selected points
         distanceToSel = calcWeightNormDistance(objRemain, selObj, objMaxMin, refWeight);
         
 
-        % 3. 处理epsilon邻域内的个体
-        idx = find( distanceToSel <= epsilon );     % idx : 在 idxRemain 中的索引
-        if(length(idx) == 1)    % 唯一的个体就是被选中的那个
+        % 3. Process the individuals within a epsilon-neighborhood
+        idx = find( distanceToSel <= epsilon );     % idx : index in idxRemain
+        if(length(idx) == 1)    % the only individual is the selected one
             idxRemain(selIdx)=[];
         else
             for i=1:length(idx)
                 if( idx(i)~=selIdx )
-                    idInIdxRemain = idx(i);     % idx 是在 idxRemain 向量中的索引
+                    idInIdxRemain = idx(i);     % idx is the index in idxRemain vector
                     id = idxRemain(idInIdxRemain);
                     
-                    % *增加偏好距离以降低这些个体
-                    % 被选择的几率。
+                    % *Increase the preference distance to discourage the individuals
+                    % to remain in the selection.
                     prefDistance(id) = prefDistance(id) + round(numInd/2);
                 end
             end
@@ -294,7 +296,7 @@ for fid = 1:length(front)
         
     end
 
-    % 保存偏好距离
+    % Save the preference distance
     for i=1:numInd
         id = idxFront(i);
         pop(id).prefDistance = prefDistance(i);
@@ -303,23 +305,23 @@ end
 
 
 function distance = calcWeightNormDistance(points, refPoints, maxMin, weight)
-% 函数: calcWeightNormDistance(points, refPoints, maxMin, weight)
-% 描述: 计算从"points"到"refPoints"的加权欧氏距离
-% 参数: 
-%   points(nPoint, N)       : 每一行是N维空间中的一个点。
-%   refPoints(nRefPoint, N) : 每一行是一个参考点。
-%   maxMin(1, N)            : 归一化因子。
-%   weight(1, N)            : 权重
+% Function: calcWeightNormDistance(points, refPoints, maxMin, weight)
+% Description: Calculate the weighted Euclidean distance from "points" to "refPoints"
+% Parameters: 
+%   points(nPoint, N)       : each row is a point in N dimension space.
+%   refPoints(nRefPoint, N) : each row is a reference point.
+%   maxMin(1, N)            : normalized factor.
+%   weight(1, N)            : weights
 %
-% 返回: 
+% Return: 
 %   distance(nPoint, nRefPoint)
 %
 %    Copyright 2011 by LSSSSWC
 %    Revision: 1.0  Data: 2011-07-14
 %*************************************************************************
 
-nRefPoint = size(refPoints, 1);     % 参考点数量
-nPoint = size(points, 1);           % 点的数量
+nRefPoint = size(refPoints, 1);     % number of reference points
+nPoint = size(points, 1);           % number of points
 
 distance = zeros(nPoint, nRefPoint);
 for ipt = 1:nRefPoint
@@ -335,34 +337,34 @@ end
 
 
 function pop = calcCrowdingDistance(opt, pop, front)
-% 函数: pop = calcCrowdingDistance(opt, pop, front)
-% 描述: 计算原始NSGA-II中使用的'拥挤度距离'。
-% 语法:
-% 参数: 
-% 返回: 
+% Function: pop = calcCrowdingDistance(opt, pop, front)
+% Description: Calculate the 'crowding distance' used in the original NSGA-II.
+% Syntax:
+% Parameters: 
+% Return: 
 %
 %    Copyright 2011 by LSSSSWC
 %    Revision: 1.0  Data: 2011-07-11
 %*************************************************************************
 
-numObj = length( pop(1).obj );  % 目标数量
+numObj = length( pop(1).obj );  % number of objectives
 for fid = 1:length(front)
     idx = front(fid).f;
-    frontPop = pop(idx);        % frontPop : 在前沿fid中的个体
+    frontPop = pop(idx);        % frontPop : individuals in front fid
     
-    numInd = length(idx);       % nInd : 当前前沿中的个体数量
+    numInd = length(idx);       % nInd : number of individuals in current front
     
     obj = vertcat(frontPop.obj);
-    obj = [obj, idx'];          % 目标值与个体ID一起排序
+    obj = [obj, idx'];          % objctive values are sorted with individual ID
     for m = 1:numObj
         obj = sortrows(obj, m);
 
         colIdx = numObj+1;
-        pop( obj(1, colIdx) ).distance = Inf;         % 第一个个体
-        pop( obj(numInd, colIdx) ).distance = Inf;    % 最后一个个体
+        pop( obj(1, colIdx) ).distance = Inf;         % the first one
+        pop( obj(numInd, colIdx) ).distance = Inf;    % the last one
         
-        minobj = obj(1, m);         % 目标m的最小值
-        maxobj = obj(numInd, m);    % 目标m的最大值
+        minobj = obj(1, m);         % the maximum of objective m
+        maxobj = obj(numInd, m);    % the minimum of objective m
         
         for i = 2:(numInd-1)
             id = obj(i, colIdx);
@@ -370,3 +372,9 @@ for fid = 1:length(front)
         end
     end
 end
+
+
+
+
+
+

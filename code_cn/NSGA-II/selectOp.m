@@ -1,13 +1,13 @@
 function newpop = selectOp(opt, pop)
-% 函数: newpop = selectOp(opt, pop)
-% 描述: 选择算子，使用二元锦标赛选择法。
+% Function: newpop = selectOp(opt, pop)
+% Description: Selection operator, use binary tournament selection.
 %
 %         LSSSSWC, NWPU
 %    Revision: 1.1  Data: 2011-07-12
 %*************************************************************************
 
 popsize = length(pop);
-pool = zeros(1, popsize);   % pool : 被选中的个体索引
+pool = zeros(1, popsize);   % pool : the individual index selected
 
 randnum = randi(popsize, [1, 2 * popsize]);
 
@@ -17,10 +17,10 @@ for i = 1:2:(2*popsize)
     p2 = randnum(i+1);
     
     if(~isempty(opt.refPoints))
-        % 偏好算子 (R-NSGA-II)
+        % Preference operator (R-NSGA-II)
         result = preferenceComp( pop(p1), pop(p2) );
     else
-        % 拥挤度比较算子 (NSGA-II)
+        % Crowded-comparison operator (NSGA-II)
         result = crowdingComp( pop(p1), pop(p2) );
     end
     
@@ -37,11 +37,11 @@ newpop = pop( pool );
 
 
 function result = crowdingComp( guy1, guy2)
-% 函数: result = crowdingComp( guy1, guy2)
-% 描述: 拥挤度比较算子。
-% 返回: 
-%   1 = guy1 优于 guy2
-%   0 = 其他情况
+% Function: result = crowdingComp( guy1, guy2)
+% Description: Crowding comparison operator.
+% Return: 
+%   1 = guy1 is better than guy2
+%   0 = other cases
 %
 %         LSSSSWC, NWPU
 %    Revision: 1.0  Data: 2011-04-20
@@ -56,11 +56,11 @@ end
 
 
 function result = preferenceComp(guy1, guy2)
-% 函数: result = preferenceComp(guy1, guy2)
-% 描述: R-NSGA-II中使用的偏好算子
-% 返回: 
-%   1 = guy1 优于 guy2
-%   0 = 其他情况
+% Function: result = preferenceComp(guy1, guy2)
+% Description: Preference operator used in R-NSGA-II
+% Return: 
+%   1 = guy1 is better than guy2
+%   0 = other cases
 %
 %    Copyright 2011 by LSSSSWC
 %    Revision: 1.0  Data: 2011-07-11
@@ -72,3 +72,10 @@ if(  (guy1.rank  < guy2.rank) || ...
 else
     result = 0;
 end
+
+
+
+
+
+
+
