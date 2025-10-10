@@ -1,9 +1,9 @@
 clc
 format long
-parpool('local', 4);
+parpool('local', 12);
 
 addpath('CycleSteps')
-addpath('NSGA-II')
+addpath('GA_files')
 
 load('Params')
 

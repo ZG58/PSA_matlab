@@ -1,19 +1,21 @@
 clc
+clear
 format long
+delete(gcp('nocreate'));
 parpool('local', 4);
 
 addpath('CycleSteps')
-addpath('NSGA-II')
+addpath('GA_files')
 
 load('Params')
 
-N = 30 ;
+N = 10 ;
 type = 'EconomicEvaluation' ;
 
 for i = 12:12
     
 % load parameters
-IsothermParams     = IsothermPar(i, :) ;    
+IsothermParams     = IsothermPar(i, :) ;
 material_propertry = SimParam(i, :)    ;
 
 material    = {}                 ;
@@ -23,12 +25,13 @@ material{2} = IsothermParams     ;
 Function = @(x) PSACycleSimulation( x, material, type, N ) ; % Function to simulate the PSA cycle
 
 % initial variables
-[~, vars] = sortt(loadpopfile('Ec.txt'));
+[~, vars] = sortt(loadpopfile('UTSA-16_Process.txt'));
+% vars = [vars, ones(length(vars), 1), 1e4*ones(length(vars), 1)];
 
 options            = nsgaopt();                          % create default options structure
 options.popsize    = 60;                                 % populaion size
-options.outputfile = 'Ec_2.txt';
-options.maxGen     = 120;                                % max generation
+options.outputfile = 'UTSA-16_Economic.txt';
+options.maxGen     = 80;                                 % max generation
 
 options.vartype    = [1, 1, 1, 1, 1, 1] ;
 
@@ -43,9 +46,20 @@ options.nameObj = {'-productivity','energy'} ;           % the objective names a
 options.objfun  = Function                   ;           % objective function handle
 
 options.useParallel = 'yes' ;                            % parallel computation is non-essential here
-options.poolsize     = 12   ;                            % number of worker processes
+options.poolsize     =  4   ;                            % number of worker processes
 
-result2 = nsga2(options)    ;                            % begin the optimization!
+result = nsga2(options)     ;                            % begin the optimization!
+
+
+% re-optimize using 30 finite volumes
+N = 30 ; 
+Function = @(x) FiveStepModSkarstromProcessSim( x, material, type, N ) ; % Function to simulate the PSA cycle
+
+options.objfun     = Function           ;                % objective function handle
+options.initfun    = {@initpop, result} ;                % Supply variables from previous results
+options.maxGen     = 120                ;                % populaion size
+options.outputfile = 'UTSA-16_Economic_2.txt'         ;
+result2            = nsga2(options)     ;                % begin the optimization!
 
 end
 

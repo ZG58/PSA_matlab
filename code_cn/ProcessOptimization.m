@@ -1,10 +1,10 @@
 clc
 format long
 delete(gcp('nocreate'));
-parpool('local', 4);
+parpool('local', 8);
 
 addpath('CycleSteps')
-addpath('NSGA-II')
+addpath('GA_files')
 
 load('Params')
 

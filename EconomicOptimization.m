@@ -5,7 +5,7 @@ delete(gcp('nocreate'));
 parpool('local', 4);
 
 addpath('CycleSteps')
-addpath('GA_files')
+addpath('NSGA-II')
 
 load('Params')
 
