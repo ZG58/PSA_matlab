@@ -1,7 +1,7 @@
 clc
 format long
 delete(gcp('nocreate'));
-parpool('local', 8);
+parpool('local', 4);
 
 addpath('CycleSteps')
 addpath('NSGA-II')
@@ -39,7 +39,7 @@ options.nameObj = {'-purity','recovery'} ;               % 目标名称会显示
 options.objfun  = Function               ;               % 目标函数句柄
 
 options.useParallel = 'yes' ;                            % 此处并行计算不是必需的
-options.poolsize     = 8   ;                             % 工作进程数
+options.poolsize     = 4   ;                             % 工作进程数
 
 result = nsga2(options)     ;                          % 开始优化！
 
