@@ -1,7 +1,7 @@
 clc
 format long
-delete(gcp('nocreate'));
-parpool('local', 4);
+%delete(gcp('nocreate'));
+%parpool('local', 4);
 
 addpath('CycleSteps')
 addpath('NSGA-II')
@@ -24,7 +24,7 @@ material{2} = IsothermParams     ;
 Function = @(x) PSACycleSimulation( x, material, type, N ) ; % 用于模拟PSA循环的函数
 
 options         = nsgaopt() ;                            % 创建默认选项结构体
-options.popsize = 40        ;                            % 种群大小
+options.popsize = 12        ;                            % 种群大小
 options.maxGen  = 60        ;                            % 最大代数
 
 options.vartype    = [1, 1, 1, 1, 1, 1]         ;
@@ -38,8 +38,8 @@ options.ub      = [10e5, 1000, 0.99, 2, 1, 5e4]  ;       % x的上界
 options.nameObj = {'-purity','recovery'} ;               % 目标名称会显示在GUI窗口中。
 options.objfun  = Function               ;               % 目标函数句柄
 
-options.useParallel = 'yes' ;                            % 此处并行计算不是必需的
-options.poolsize     = 4   ;                             % 工作进程数
+options.useParallel = 'no' ;                            % 此处并行计算不是必需的
+%options.poolsize     = 4   ;                             % 工作进程数
 
 result = nsga2(options)     ;                          % 开始优化！
 
