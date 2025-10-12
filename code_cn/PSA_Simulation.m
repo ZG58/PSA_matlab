@@ -56,7 +56,9 @@ X_samples = [
 results_objectives = zeros(num_simulations, 2); 
 results_constraints = zeros(num_simulations, 3);
 
-% --- 循环进行仿真，使用预先生成的样本 ---
+% --- 计时开始 ---
+tic;
+
 fprintf('\n开始使用预生成的样本进行仿真...\n');
 for i = 1:num_simulations
     
@@ -64,7 +66,6 @@ for i = 1:num_simulations
     x = X_samples(i, :);
     
     fprintf('--> 正在进行第 %d/%d 次仿真...\n', i, num_simulations);
-    % disp(x); % 如果需要，可以取消注释以显示当前 x
 
     % 调用仿真函数 (请替换为您的真实函数)
     [objectives, constraints] = PSACycleSimulation(x, material, type, N);
@@ -74,4 +75,9 @@ for i = 1:num_simulations
     results_constraints(i, :) = constraints;
 end
 
+% --- 计时结束 ---
+total_time = toc;
+
 fprintf('\n所有 %d 次仿真已完成！\n', num_simulations);
+fprintf('总仿真时间：%.2f 秒\n', total_time);
+fprintf('平均每次仿真时间：%.2f 秒\n', total_time / num_simulations);
