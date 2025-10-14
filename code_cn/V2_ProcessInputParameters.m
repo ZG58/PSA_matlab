@@ -1,4 +1,4 @@
-function InputParams = ProcessInputParameters(process_vars, material, N)
+function InputParams = V2_ProcessInputParameters(process_vars, material, N)
 %InputParameters: 指定PSA模拟的输入参数
 %   有限体积数始终是调用脚本/
 %   函数的输入。此外，x 用于允许从调用脚本/
@@ -16,14 +16,17 @@ function InputParams = ProcessInputParameters(process_vars, material, N)
     beta        = process_vars(6)       ;   % 重组分产品回流比 [-]
     P_I         = process_vars(7)       ;   % 中间压力 [Pa]
 	P_l         = process_vars(8)       ;   % 吹扫压力 [Pa]
+    t_pres      = process_vars(9)       ;   % 加压步骤时间 [s]
+    t_CnCdepres = process_vars(10)      ;   % 逆流降压步骤时间 [s]
+    % t_CoCdepres = process_vars(8)       ;   % 逆流降压步骤时间 [s]
     
     % 检索取决于吸附剂材料的参数
     material_propertry = material{1}    ;
     IsothermPar        = material{2}    ; 
     
     % 操作床层参数
-    t_pres      = 20                    ;   % 最大/加压步骤时间 [s]
-    t_CnCdepres = 30                    ;   % 最大/并流降压步骤时间 [s]
+    % t_pres      = 20                    ;   % 最大/加压步骤时间 [s]
+    % t_CnCdepres = 30                    ;   % 最大/逆流降压步骤时间 [s]
     t_CoCdepres = 70                    ;   % 最大/逆流降压步骤时间 [s]
     t_LR        = t_ads                 ;   % 轻组分回流步骤时间 [s]
     t_HR        = t_LR                  ;   % 重组分回流步骤时间 [s]
@@ -107,11 +110,11 @@ function InputParams = ProcessInputParameters(process_vars, material, N)
     Params(30) = alpha    	  ;
     Params(31) = beta         ;
     Params(32) = P_I          ;
-    Params(33) = y_0          ;   % 并流降压出口y的位置 = 重组分回流入品y: y_HP
+    Params(33) = y_0          ;   % 逆流降压出口y的位置 = 重组分回流入品y: y_HP
                                   % y_HR = y_0 - 重组分回流步骤中入口CO2摩尔分数的初始猜测值
-    Params(34) = T_0          ;   % 并流降压出口T的位置 = 重组分回流入品T: T_HP
+    Params(34) = T_0          ;   % 逆流降压出口T的位置 = 重组分回流入品T: T_HP
                                   % T_HR = T_0 - 重组分回流步骤中入口温度的初始猜测值
-    Params(35) = ndot_0*beta  ;   % 300/30   % 并流降压出口ndot的位置 = 重组分回流入品ndot
+    Params(35) = ndot_0*beta  ;   % 300/30   % 逆流降压出口ndot的位置 = 重组分回流入品ndot
                                   % ndot_HR = ndot_0*beta - 重组分回流步骤中入口ndot的初始猜测值
     Params(36) = 0.01    	  ;   % 吸附出口y的位置 = 并流加压入口y: y_LP
                                   % y_LR = 0.01 - 并流加压步骤中入口CO2摩尔分数的初始猜测值

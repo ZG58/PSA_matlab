@@ -50,6 +50,7 @@ function derivatives = FuncAdsorption(~, state_vars, params, isotherm_params)
     MW_N2			=	params(20)	;
     k_1_LDF		    =	params(21)	;
     k_2_LDF		    =	params(22)	;
+    
     y_0				=	params(23)	;
     P_inlet			=	params(26)	;
     ndot_0          =   P_0/R/T_0*v_0   ;

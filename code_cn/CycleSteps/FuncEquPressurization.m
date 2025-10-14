@@ -1,7 +1,8 @@
-function derivatives = FuncCnCDepressurization(~, state_vars, params, isotherm_params)
+function derivatives = FuncEquPressurization(~, state_vars, params, isotherm_params)
 %#codegen
-%并流降压：计算并流降压步骤中状态变量的变化
+%均压升：计算均压升步骤中状态变量的变化
 %   与MATLAB ode求解器（ode15s）结合使用，求解变压吸附（PSA）步骤的偏微分方程组。
+%   此步骤中，塔底关闭，气体从塔顶进入。
 %   该偏微分方程组通过使用有限体积法（FVM）求解，
 %   其中空间域被离散为N个体积单元。
 %   假设每个体积单元内的状态变量值是均匀的。
@@ -50,9 +51,10 @@ function derivatives = FuncCnCDepressurization(~, state_vars, params, isotherm_p
     MW_N2			=	params(20)	;
     k_1_LDF		    =	params(21)	;
     k_2_LDF		    =	params(22)	;
-    
     tau				=	params(24)	;
-    P_l				=	params(25)	;
+    P_eq			=	params(36)	; % 均压目标压力
+    y_eq            =   params(37)  ; % 均压进气组分
+    T_eq            =   params(38)  ; % 均压进气温度
 %   
 %% 初始化状态变量
     P  = zeros(N+2, 1) ;
@@ -92,20 +94,6 @@ function derivatives = FuncCnCDepressurization(~, state_vars, params, isotherm_p
     dTdz        = zeros(N+2, 1)    ;
     d2Tdz2      = zeros(N+2, 1)    ;
 %   
-%%  
-%   以下估算值为所使用的参数。轴向
-%   弥散系数使用以下来自 Ruthvan "Pressure Swing Adsorption"
-%   的方程计算
-%   
-%%  
-%   $$ D_{L}= 0.7 D_{m} + r_{p} \cdot v_{0} $$
-%   
-%%  
-%   气体浓度使用理想气体定律计算
-%   
-%%  
-%   $$ C_{g}=\frac{\bar{P}}{R\bar{T}} \cdot \frac{P_{0}}{T_{0}} $$
-%   
 %% 计算所有使用的参数
     dz   = 1/N                                ;
     D_l  = 0.7*D_m + v_0*r_p                  ;
@@ -114,303 +102,154 @@ function derivatives = FuncCnCDepressurization(~, state_vars, params, isotherm_p
     ro_g = P(1:N+2).*P_0/R./T(1:N+2)/T_0      ;
 %   
 %% 边界条件
-%   并流降压的边界条件，对应于
-%   塔的重组分产品端打开而轻组分产品端
-%   关闭的情况。对于重组分产品端，使用以下
-%   边界条件：
+%   均压升的边界条件，对应于塔底
+%   （重组分产品端）关闭而塔顶（轻组分产品端）
+%   打开以补充气体的情况。
+%   对于塔底（Z=0），使用以下边界条件：
 %   
 %%  
-%   $$ \frac{\partial \bar{P}}{\partial \tau} = \lambda(\bar{P_L}-\bar{P}) \quad | Z=0^- $$
+%   $$ \frac{\partial \bar{P}}{\partial Z} = 0 \quad | Z=0^- $$
 %   
-%   $$ \frac{\partial y}{\partial \tau} = 0 \quad | Z=0^- $$
+%   $$ \frac{\partial y}{\partial Z} = 0 \quad | Z=0^- $$
 %   
-%   $$ \frac{\partial \bar{T}}{\partial \tau} = 0 \quad | Z=0^- $$
-%   
-%%  
-    y(1) = y(2)     ;
-    T(1) = T(2)     ;
-    if P(1) > P(2)
-        P(1) = P(2) ;
-    end
+%   $$ \frac{\partial \bar{T}}{\partial Z} = 0 \quad | Z=0^- $$
 %   
 %%  
-%   对于轻组分产品端，使用以下边界条件：
+    P(1) = P(2) ;
+    y(1) = y(2) ;
+    T(1) = T(2) ;
 %   
 %%  
-%   $$ \frac{\partial \bar{P}}{\partial \tau} = 0 \quad | Z=1^+ $$
-%   
-%   $$ \frac{\partial y}{\partial \tau} = 0 \quad | Z=1^+ $$
-%   
-%   $$ \frac{\partial \bar{T}}{\partial \tau} = 0 \quad | Z=1^+ $$
+%   对于塔顶（Z=1），使用以下边界条件：
 %   
 %%  
-    y(N+2) = y(N+1) ;
-    T(N+2) = T(N+1) ;
-    P(N+2) = P(N+1) ;
+%   $$ \frac{\partial \bar{P}}{\partial \tau} = \lambda(\bar{P_{eq}}-\bar{P}) \quad | Z=1^+ $$
+%   
+%   $$ y = y_{eq} \quad | Z=1^+ $$
+%   
+%   $$ \bar{T} = \bar{T}_{eq} \quad | Z=1^+ $$
+%   
+%%  
+    y(N+2) = y_eq     ;
+    T(N+2) = T_eq/T_0 ;
 %   
 %% 空间导数计算
+%   对于一阶导数，使用加权基本无振荡（WENO）格式。
+%   由于气体从塔顶流入塔内（速度为负），使用'downwind'格式。
 %   
-%   *一阶导数*
-%   
-%   对于一阶导数，每个体积单元的值是基于
-%   其壁面上的值来估算的。这些值使用
-%   加权基本无振荡（WENO）格式进行估算。
-%   
-%%  
-%   $$ \frac{\partial f_j}{\partial Z}=\frac{f_{j+0.5}-f_{j-0.5}}{\Delta Z} $$
-%   
-%%  
-%   压力：在体积单元中心和壁面上
-    
     Ph          = WENO(P, 'downwind')    ;
-    
     dpdz(2:N+1) = (Ph(2:N+1)-Ph(1:N))/dz ;
     dpdzh(2:N)  = (P(3:N+1)-P(2:N))/dz   ;
     dpdzh(1)    =  2*(P(2)-P(1))/dz      ;
     dpdzh(N+1)  =  2*(P(N+2)-P(N+1))/dz  ;
-%   
-%%  
-%   摩尔分数：在体积单元中心
-    
+
     yh          = WENO(y, 'downwind')    ;
-    
     dydz(2:N+1) = (yh(2:N+1)-yh(1:N))/dz ;
-%   
-%%  
-%   温度：在体积单元中心
     
     Th          = WENO(T, 'downwind')    ;
-    
     dTdz(2:N+1) = (Th(2:N+1)-Th(1:N))/dz ;
 %   
 %%  
 %   *二阶导数*
 %   
-%   二阶导数是基于节点上的值计算的。
-%   只需要计算温度和摩尔分数的二阶导数。
-%   需要注意的是，在塔的两端，没有发生扩散/传导，
-%   所以在导数值中这些被设为0。
-%   
-%%  
-%   $$ \frac{{\partial}^2 f_{j}}{\partial {Z}^2} = \frac{f_{j+1}+f_{j-1}-
-%       2f_{j}}{{\Delta Z}^2} $$
-%   
-%%  
-%   摩尔分数
     d2ydz2(3:N) = (y(4:N+1)+y(2:N-1)-2*y(3:N))/dz/dz ;
     d2ydz2(2)   = (y(3)-y(2))/dz/dz                  ;
     d2ydz2(N+1) = (y(N)-y(N+1))/dz/dz                ;
-%   
-%%  
-%   温度
+    
     d2Tdz2(3:N) = (T(4:N+1)+T(2:N-1)-2*T(3:N))/dz/dz ;
     d2Tdz2(2)   =  4*(Th(2)+T(1)-2*T(2))/dz/dz       ;
     d2Tdz2(N+1) =  4*(Th(N)+T(N+2)-2*T(N+1))/dz/dz   ;
 %   
 %% 速度计算
-%   根据压力梯度计算气体在体积单元壁面处的间隙速度。
-%   注意：请记住，Ergun方程中的速度是表观速度，
-%   而不是间隙速度，这就是为什么在粘性项的分母中
-%   是epsilon^2而不是epsilon^3，动能项也是如此，
-%   其中是epsilon而不是epsilon^3。表观速度等于
-%   间隙速度乘以空隙率。
+%   根据Ergun方程计算气体速度。
 %   
-%%  
-%   $$ U = v \cdot \varepsilon $$
-%   
-%   $$ - \frac{\partial \bar{P}}{\partial Z}\frac{P_0}{L} =
-%   \frac{150\mu(1-\varepsilon)^2}{4r_{p}\varepsilon^2}\bar{v}v_0 +
-%   \frac{1.75(1-\varepsilon)}{2r_{p}\varepsilon}
-%   (\sum_{i}y_{i}MW_{i}C_{g})\bar{v}^2{v_{0}}^2 $$
-%   
-%%  
     ro_gh          = (P_0/R/T_0)*Ph(1:N+1)./Th(1:N+1)               ;
-    
     viscous_term   = 150*mu*(1-epsilon)^2/4/r_p^2/epsilon^2         ;
     kinetic_term_h = (ro_gh.*(MW_N2+(MW_CO2-MW_N2).*yh)).*(1.75*(1-epsilon)...
                      /2/r_p/epsilon)                                         ;
-                    
-    % 体积单元壁面上的速度
     vh = -sign(dpdzh).*(-viscous_term+(abs(viscous_term^2+4*kinetic_term_h... 
                .*abs(dpdzh)*P_0/L)).^(.5))/2./kinetic_term_h/v_0             ;
 %   
 %% 时间导数
 %   
-%%  
-%   *1) 吸附相质量平衡（组分1和2的摩尔负载量）*
-%       使用线性驱动力（LDF）模型计算气体的
-%       吸附速率。假设LDF传质系数在
-%       重要的压力和温度范围内是恒定的。
+%   *1) 吸附相质量平衡*
 %   
-%%  
-%   $$ \frac{\partial x_{i}}{\partial \tau}q_{s0}= k_{i}({q_{i}}^*-q_{i}) $$
-%   
-%%  
-%   1.1) 计算平衡摩尔负载量
     q   = Isotherm(y, P*P_0, T*T_0, isotherm_params) ;
     q_1 = q(:, 1)*ro_s                               ;
     q_2 = q(:, 2)*ro_s                               ;
-%   
-%%  
-%   1.2) 计算LDF参数
+    
     k_1 = k_1_LDF*L/v_0 ;
     k_2 = k_2_LDF*L/v_0 ;
-%   
-%%  
-%   1.3) 计算时间导数
+    
     dx1dt(2:N+1) = k_1*(q_1(2:N+1)/q_s0 - x1(2:N+1)) ;
     dx2dt(2:N+1) = k_2*(q_2(2:N+1)/q_s0 - x2(2:N+1)) ;
 %   
-%%  
-%   *2) 塔的能量平衡（塔温）*
-%       对于塔内的能量平衡，假设：
-%       * 固相和气相之间处于热平衡状态
-%       * 热传导同时通过固相和气相发生
-%       * 对流只在气相中发生
+%   *2) 塔的能量平衡*
 %   
-%%  
-%   $$ \big[ \varepsilon C_{g}C_{p,g}+(1-\varepsilon)(C_{p,s}\rho_{s}+
-%       C_{p,a}q_{s0})\big]\frac{\partial \bar{T}}{\partial \tau}= 
-%       \frac{K_z}{v_0L} \frac{\partial^2 \bar{T}}{\partial Z^2}
-%     - \varepsilon C_{g}C_{p,g} \bar{v}\frac{\partial \bar{T}}{\partial Z}
-%     + \sum_{i} (1-\varepsilon)(-\Delta H_{i})\frac{q_{s0}}{T_{0}}\frac{
-%       \partial \bar{x_{i}}}{\partial \tau} $$
-%   
-%%  
-    % [J/m^3/K]
     sink_term = ((1-epsilon)*(ro_s*C_ps+q_s0*C_pa)+(epsilon.*ro_g(2:N+1).*C_pg)) ;
-%   
-%%  
-%   2.1) 计算由于塔内热传导（固相和气相）
-%        引起的温度变化
-%   
-%%  
-%   $$ \frac{K_z}{v_0L} \frac{\partial^2 \bar{T}}{\partial Z^2} $$
-%   
-%%  
+    
+    % 2.1) 热传导
     transfer_term = K_z./v_0./L                             ;
     dTdt1(2:N+1)  = transfer_term.*d2Tdz2(2:N+1)./sink_term ;
-%   
-%%  
-%   2.2) 计算由于对流引起的温度变化
-%   
-%%  
-%   $$ -\varepsilon C_{g}C_{p,g} \bar{v}\frac{\partial \bar{T}}{\partial Z} $$
-%   
-%%  
+    
+    % 2.2) 对流
     PvT          = Ph(1:N+1).*vh(1:N+1)./Th(1:N+1) ;
     Pv           = Ph(1:N+1).*vh(1:N+1)            ;
     dTdt2(2:N+1) = -epsilon.*C_pg.*P_0./R./T_0.*((Pv(2:N+1)-Pv(1:N))- ... 
                     T(2:N+1).*(PvT(2:N+1)-PvT(1:N)))./dz./sink_term      ;
-%   
-%%  
-%   2.3) 计算由于吸附/解吸焓变引起的温度变化
-%   
-%%  
-%   $$ \sum_{i} (1-\varepsilon)(-\Delta
-%   H_{i})\frac{q_{s0}}{T_{0}}\frac{\partial \bar{x_{i}}}{\partial \tau} $$
-%   
-%   $$ \Delta H_{i} = \Delta U_i - R\bar{T}T_{0} $$
-%   
-%%  
+    
+    % 2.3) 吸附热
     generation_term_1 = (1-epsilon).*q_s0.*(-(deltaU_1-R*T(2:N+1)*T_0))./T_0 ;
     generation_term_2 = (1-epsilon).*q_s0.*(-(deltaU_2-R*T(2:N+1)*T_0))./T_0 ;
-    
     dTdt3(2:N+1)      = (generation_term_1.*dx1dt(2:N+1)+...
                          generation_term_2.*dx2dt(2:N+1))./sink_term  ;
-%   
-%%  
-%   2.4) 所有温度导数的总和
+    
+    % 2.4) 总和
     dTdt(2:N+1) = dTdt1(2:N+1) + dTdt2(2:N+1) + dTdt3(2:N+1) ;
 %   
-%%  
 %   *3) 总质量平衡*
 %   
-%%  
-%   $$ \frac{\partial \bar{P}}{\partial \tau} = -\frac{\partial( \bar{v}
-%      \bar{P}/\bar{T})}{\partial Z} - \Psi \bar{T} \sum_{i}\frac{\partial 
-%      \bar{x_{i}}}{\partial \tau} + \frac{\bar{P}}{\bar{T}}\frac{\partial 
-%      \bar{T}}{\partial \tau} $$
-%   
-%%  
-%   3.1) 计算由于对流引起的压力变化
+    % 3.1) 对流
     dPdt1(2:N+1) = -T(2:N+1).*(PvT(2:N+1)-PvT(1:N))./dz  ;
-%   
-%%  
-%   3.2) 计算由于吸附/解吸引起的压力变化
+    
+    % 3.2) 吸附
     dPdt2(2:N+1) = -phi*T(2:N+1).*(dx1dt(2:N+1)+dx2dt(2:N+1)) ;
-%   
-%%  
-%   3.3) 计算由于温度变化引起的压力变化
+    
+    % 3.3) 温度变化
     dPdt3(2:N+1) = P(2:N+1).*dTdt(2:N+1)./T(2:N+1)            ;
-%   
-%%  
-%   3.4) 所有压力变化的总和
+    
+    % 3.4) 总和
     dPdt(2:N+1) = dPdt1(2:N+1) + dPdt2(2:N+1) + dPdt3(2:N+1)  ;
 %   
-%%  
-%   *4) 组分质量平衡（基于摩尔分数）*
+%   *4) 组分质量平衡*
 %   
-%%  
-%   $$ \frac{\partial y}{\partial \tau} = \frac{1}{Pe} \big(\frac{{
-%      \partial}^2 y}{\partial {Z}^2}+\frac{1}{\bar{P}}\frac{\partial
-%      \bar{P}}{\partial Z}\frac{\partial y}{\partial Z}-\frac{1}{\bar{T}}
-%      \frac{\partial \bar{T}}{\partial Z}\frac{\partial y}{\partial Z}
-%      \big)-\bar{v}\frac{\partial y}{\partial Z}+\frac{\Psi \bar{T}}{
-%      \bar{P}} \big((y-1)\frac{\partial \bar{x_{1}}}{\partial \tau}+y
-%      \frac{\partial\bar{x_{2}}}{\partial \tau}\big) $$
-%   
-%%  
-%   4.1) 计算由于扩散引起的摩尔分数变化
-%   
-%%  
-%   $$ \frac{1}{Pe} \big(\frac{{\partial}^2 y}{\partial {Z}^2}+\frac{1}{
-%      \bar{P}}\frac{\partial \bar{P}}{\partial Z}\frac{\partial y}{
-%      \partial Z}-\frac{1}{\bar{T}}\frac{\partial \bar{T}}{\partial Z}
-%      \frac{\partial y}{\partial Z} \big) $$
-%   
-%%  
+    % 4.1) 扩散
     dydt1(2:N+1) = (1/Pe)*(d2ydz2(2:N+1)+(dydz(2:N+1).*dpdz(2:N+1)./P(2:N+1))... 
                   -(dydz(2:N+1).*dTdz(2:N+1)./T(2:N+1)))                        ;
-%   
-%%  
-%   4.2) 计算由于对流引起的摩尔分数变化
-%   
-%%  
-%   $$ -\bar{v}\frac{\partial y}{\partial Z} $$
-%   
-%%  
+    
+    % 4.2) 对流
     ypvt         = yh(1:N+1).*Ph(1:N+1).*vh(1:N+1)./Th(1:N+1)        ;
     dydt2(2:N+1) = -(T(2:N+1)./P(2:N+1)).*((ypvt(2:N+1)-ypvt(1:N))... 
                    -y(2:N+1).*(PvT(2:N+1)-PvT(1:N)))./dz             ;
-%   
-%%  
-%   4.3) 计算由于吸附/解吸引起的摩尔分数变化
-%   
-%%  
-% $$ \frac{\Psi \bar{T}}{\bar{P}} \big((y-1)\frac{\partial \bar{x_{1}}}{
-%    \partial \tau}+y\frac{\partial \bar{x_{2}}}{\partial \tau}\big) $$
-%   
-%%  
+    
+    % 4.3) 吸附
     dydt3(2:N+1) = (phi*T(2:N+1)./P(2:N+1)).*((y(2:N+1)-1).*dx1dt(2:N+1)... 
                   + y(2:N+1).*dx2dt(2:N+1))                                ;
-%   
-%%  
-%   4.4) 所有摩尔分数变化的总和
+    
+    % 4.4) 总和
     dydt(2:N+1) = dydt1(2:N+1) + dydt2(2:N+1) + dydt3(2:N+1) ;
 %   
 %%  边界导数
-    %dPdt(1)    = tau*(P_l/P_0-P(1))       ;
-	dPdt(1)    = tau*L/v_0*(P_l/P_0-P(1)) ;
-    dPdt(N+2)  = dPdt(N+1)                ;
-    dydt(1)    = dydt(2)                  ;
-    dydt(N+2)  = dydt(N+1)                ;
-    dx1dt(1)   = 0                        ;
-    dx2dt(1)   = 0                        ;
-    dx1dt(N+2) = 0                        ;
-    dx2dt(N+2) = 0                        ;
-    dTdt(1)    = dTdt(2)                  ;
-    dTdt(N+2)  = dTdt(N+1)                ;
+    dPdt(1)    = dPdt(2)                      ;
+    dPdt(N+2)  = tau*L/v_0*(P_eq/P_0-P(N+2))  ;
+    dydt(1)    = dydt(2)                      ;
+    dydt(N+2)  = 0                            ; % Dirichlet BC for y
+    dx1dt(1)   = 0                            ;
+    dx2dt(1)   = 0                            ;
+    dx1dt(N+2) = 0                            ;
+    dx2dt(N+2) = 0                            ;
+    dTdt(1)    = dTdt(2)                      ;
+    dTdt(N+2)  = 0                            ; % Dirichlet BC for T
 %   
 %%  将导数导出到输出
     derivatives(1:N+2)        = dPdt(1:N+2)  ;

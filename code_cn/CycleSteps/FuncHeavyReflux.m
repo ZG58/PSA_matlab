@@ -50,6 +50,7 @@ function derivatives = FuncHeavyReflux(~, state_vars, params, isotherm_params)
     MW_N2			=	params(20)	;
     k_1_LDF		    =	params(21)	;
     k_2_LDF		    =	params(22)	;
+    
     P_inlet			=	params(26)	;
     y_HR		    =	params(33)  ;
     T_HR		    =	params(34)  ;

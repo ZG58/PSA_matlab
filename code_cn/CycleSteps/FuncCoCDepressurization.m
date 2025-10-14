@@ -50,6 +50,7 @@ function derivatives = FuncCoCDepressurization(~, state_vars, params, isotherm_p
     MW_N2			=	params(20)	;
     k_1_LDF		    =	params(21)	;
     k_2_LDF		    =	params(22)	;
+    
     tau				=	params(24)	;
     P_I				=	params(32)	;
 %   

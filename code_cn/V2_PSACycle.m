@@ -1,4 +1,4 @@
-function  [objectives, constraints, a, b, c, d, e, t1, t2, t3, t4, t5] = PSACycle(vars, material, x0, type, N, it_disp)
+function  [objectives, constraints, a, b, c, d, e, t1, t2, t3, t4, t5] = V2_PSACycle(vars, material, x0, type, N, it_disp)
 %Skarstrom: 模拟一个五步改进型Skarstrom变压吸附循环
 %   本函数能够模拟一个五步改进型Skarstrom变压吸附循环，
 %   并提供状态变量和过程目标。由于通量计算具有内在的
@@ -124,7 +124,7 @@ function  [objectives, constraints, a, b, c, d, e, t1, t2, t3, t4, t5] = PSACycl
     objectives  = [0, 0]    ;
     
     % 输入参数
-    InputParams     = ProcessInputParameters(vars, material, N) ;
+    InputParams     = V2_ProcessInputParameters(vars, material, N) ;
     Params          = InputParams{1}                  ;
     IsothermParams  = InputParams{2}                  ;
     Times           = InputParams{3}                  ;
@@ -362,9 +362,19 @@ if constraints(1) == 0
         
         % 存储逆流降压步骤的最终条件 - 所有迭代
         % 以及塔前、后端处的CO2和总摩尔数
-        [totalFront, CO2Front, ~] = StreamCompositionCalculator(t4*L/v_0, d, 'HPEnd') ;
+        [totalFront, CO2Front, TFront] = StreamCompositionCalculator(t4*L/v_0, d, 'HPEnd') ;
         [totalEnd, CO2End, ~]     = StreamCompositionCalculator(t4*L/v_0, d, 'LPEnd') ;
         d_fin = [d_fin; d(end, :), CO2Front, totalFront, CO2End, totalEnd]            ;
+
+        % 计算重组分回流步骤所需的参数
+        y_HR       = CO2Front/totalFront    ;
+        T_HR       = TFront                 ;
+        ndot_HR    = totalFront.*beta/t_HR  ;
+        Params(33) = y_HR                   ;
+        Params(34) = T_HR                   ;
+        Params(35) = ndot_HR                ;
+        
+        HeavyReflux_fxn = @(t, x) FuncHeavyReflux(t, x, Params, IsothermParams) ;
         
         % 为轻组分回流步骤准备初始条件
         x40         = d(end,:)'    ;  % 上一步的最终状态是
@@ -396,19 +406,20 @@ if constraints(1) == 0
         
         % 存储轻组分回流步骤的最终条件 - 所有迭代
         % 以及塔前、后端处的CO2和总摩尔数
-        [totalFront, CO2Front, TFront]  = StreamCompositionCalculator(t5*L/v_0, e, 'HPEnd') ;
+        % [totalFront, CO2Front, TFront]  = StreamCompositionCalculator(t5*L/v_0, e, 'HPEnd') ;
+        [totalFront, CO2Front, ~]  = StreamCompositionCalculator(t5*L/v_0, e, 'HPEnd') ;
         [totalEnd, CO2End, ~]           = StreamCompositionCalculator(t5*L/v_0, e, 'LPEnd') ;
         e_fin = [e_fin; e(end, :), CO2Front, totalFront, CO2End, totalEnd]                  ;
         
-        % 计算重组分回流步骤所需的参数
-        y_HR       = CO2Front/totalFront    ;
-        T_HR       = TFront                 ;
-        ndot_HR    = totalFront.*beta/t_HR  ;
-        Params(33) = y_HR                   ;
-        Params(34) = T_HR                   ;
-        Params(35) = ndot_HR                ;
-        
-        HeavyReflux_fxn = @(t, x) FuncHeavyReflux(t, x, Params, IsothermParams) ;
+        % % 计算重组分回流步骤所需的参数
+        % y_HR       = CO2Front/totalFront    ;
+        % T_HR       = TFront                 ;
+        % ndot_HR    = totalFront.*beta/t_HR  ;
+        % Params(33) = y_HR                   ;
+        % Params(34) = T_HR                   ;
+        % Params(35) = ndot_HR                ;
+        % 
+        % HeavyReflux_fxn = @(t, x) FuncHeavyReflux(t, x, Params, IsothermParams) ;
         
         % 为并流加压步骤准备初始条件
         x0         = e(end, :)' ;  % 上一步的最终状态是
@@ -685,8 +696,11 @@ end
 	%   
     %% 计算塔的纯度、回收率和质量平衡
         
-        purity       = (n_CO2_CnCDepres_HPEnd+(1-beta)*n_CO2_LR_HPEnd)/(n_tot_CnCDepres_HPEnd+(1-beta)*n_tot_LR_HPEnd) ;
-        recovery     = (n_CO2_CnCDepres_HPEnd+(1-beta)*n_CO2_LR_HPEnd)/(n_CO2_CoCPres_HPEnd+n_CO2_ads_HPEnd)           ;
+        % purity       = (n_CO2_CnCDepres_HPEnd+(1-beta)*n_CO2_LR_HPEnd)/(n_tot_CnCDepres_HPEnd+(1-beta)*n_tot_LR_HPEnd) ;
+        % recovery     = (n_CO2_CnCDepres_HPEnd+(1-beta)*n_CO2_LR_HPEnd)/(n_CO2_CoCPres_HPEnd+n_CO2_ads_HPEnd)           ;
+
+        purity       = ((1-beta)*n_CO2_CnCDepres_HPEnd+n_CO2_LR_HPEnd)/((1-beta)*n_tot_CnCDepres_HPEnd+n_tot_LR_HPEnd) ;
+        recovery     = ((1-beta)*n_CO2_CnCDepres_HPEnd+n_CO2_LR_HPEnd)/(n_CO2_CoCPres_HPEnd+n_CO2_ads_HPEnd)           ;
         
         mass_balance = (n_CO2_CnCDepres_HPEnd+n_CO2_ads_LPEnd+n_CO2_HR_LPEnd+n_CO2_LR_HPEnd)/... 
                        (n_CO2_CoCPres_HPEnd+n_CO2_ads_HPEnd+n_CO2_HR_HPEnd+n_CO2_LR_LPEnd)                             ;
@@ -1178,7 +1192,7 @@ end
     
     function [value, isterminal, direction] = CnCDepressurizationStop(~, y)
     %CnCDepressurizationStop: 用于ode15s以停止步骤的函数
-    %   并流降压步骤的终止函数，一旦达到
+    %   逆流降压步骤的终止函数，一旦达到
     %   所需压力，就停止求解
     %
     %%  

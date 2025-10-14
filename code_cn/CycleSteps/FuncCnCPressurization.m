@@ -1,7 +1,8 @@
-function derivatives = FuncCoCPressurization(~, state_vars, params, isotherm_params)
+function derivatives = FuncCnCPressurization(~, state_vars, params, isotherm_params)
 %#codegen
-%逆流加压：计算逆流加压步骤中状态变量的变化
+%并流加压：计算并流加压步骤中状态变量的变化
 %   与MATLAB ode求解器（ode15s）结合使用，求解变压吸附（PSA）步骤的偏微分方程组。
+%   该函数模拟原料气从塔顶(Z=1)进入，塔底(Z=0)关闭的过程。
 %   该偏微分方程组通过使用有限体积法（FVM）求解，
 %   其中空间域被离散为N个体积单元。
 %   假设每个体积单元内的状态变量值是均匀的。
@@ -51,8 +52,9 @@ function derivatives = FuncCoCPressurization(~, state_vars, params, isotherm_par
     k_1_LDF	     	=	params(21)	;
     k_2_LDF		    =	params(22)	;
     
-    y_0				=	params(23)	;
     tau				=	params(24)	;
+    y_LP			=	params(36)	;
+    T_LP			=	params(37)	;
 %   
 %% 初始化状态变量
     P  = zeros(N+2, 1) ;
@@ -92,20 +94,6 @@ function derivatives = FuncCoCPressurization(~, state_vars, params, isotherm_par
     dTdz        = zeros(N+2, 1)    ;
     d2Tdz2      = zeros(N+2, 1)    ;
 %   
-%%  
-%   以下估算值为所使用的参数。轴向
-%   弥散系数使用以下来自 Ruthvan "Pressure Swing Adsorption"
-%   的方程计算
-%   
-%%  
-%   $$ D_{L}= 0.7 D_{m} + r_{p} \cdot v_{0} $$
-%   
-%%  
-%   气体浓度使用理想气体定律计算
-%   
-%%  
-%   $$ C_{g}=\frac{\bar{P}}{R\bar{T}} \cdot \frac{P_{0}}{T_{0}} $$
-%   
 %% 计算所有使用的参数
     dz   = 1/N                                ;
     D_l  = 0.7*D_m + v_0*r_p                  ;
@@ -114,40 +102,39 @@ function derivatives = FuncCoCPressurization(~, state_vars, params, isotherm_par
     ro_g = P(1:N+2).*P_0/R./T(1:N+2)/T_0      ;
 %   
 %% 边界条件
-%   逆流加压的边界条件，对应于
-%   塔的重组分产品端打开而轻组分产品端
-%   关闭的情况。一股已知温度和
-%   组成的原料气从重组分产品端送入塔内。
-%   对于重组分产品端，使用以下边界条件：
+%   并流加压的边界条件，对应于
+%   塔的重组分产品端(Z=0)关闭而轻组分产品端(Z=1)
+%   打开进行加压的情况。
+%   对于重组分产品端 (Z=0)，使用以下边界条件：
 %   
 %%  
-%   $$ \bar{P} = \bar{P}_{L} \quad | Z=0^- $$
+%   $$ \frac{\partial \bar{P}}{\partial Z} = 0 \quad | Z=0^- $$
 %   
-%   $$ y = y_{0} \quad | Z=0^- $$
+%   $$ \frac{\partial y}{\partial Z} = 0 \quad | Z=0^- $$
 %   
-%   $$ \frac{\partial \bar{P}}{\partial \tau} = \lambda(1.0-\bar{P}) \quad | Z=0^- $$
+%   $$ \frac{\partial \bar{T}}{\partial Z} = 0 \quad | Z=0^- $$
 %   
 %%  
-    y(1) = y_0      ;
-    T(1) = T_0/T_0  ;
-    if P(2) > P(1)
-        P(1) = P(2) ;
+    P(1) = P(2) ;
+    y(1) = y(2) ;
+    T(1) = T(2) ;
+%   
+%%  
+%   对于轻组分产品端 (Z=1)，使用以下边界条件：
+%   
+%%  
+%   $$ \frac{\partial \bar{P}}{\partial \tau} = \lambda(1.0-\bar{P}) \quad | Z=1^+ $$
+%
+%   $$ y = y_{0} \quad | Z=1^+ $$
+%   
+%   $$ \bar{T} = 1 \quad | Z=1^+ $$
+%   
+%%  
+    y(N+2) = y_LP      ;
+    T(N+2) = T_LP/T_0  ;
+    if P(N+1) > P(N+2)
+        P(N+2) = P(N+1) ;
     end
-%   
-%%  
-%   对于轻组分产品端，使用以下边界条件：
-%   
-%%  
-%   $$ \frac{\partial \bar{P}}{\partial \tau} = 0 \quad | Z=1^+ $$
-%   
-%   $$ \frac{\partial y}{\partial \tau} = 0 \quad | Z=1^+ $$
-%   
-%   $$ \frac{\partial \bar{T}}{\partial \tau} = 0 \quad | Z=1^+ $$
-%   
-%%  
-    y(N+2) = y(N+1) ;
-    T(N+2) = T(N+1) ;
-    P(N+2) = P(N+1) ;
 %   
 %% 空间导数计算
 %   
@@ -156,34 +143,15 @@ function derivatives = FuncCoCPressurization(~, state_vars, params, isotherm_par
 %   对于一阶导数，每个体积单元的值是基于
 %   其壁面上的值来估算的。这些值使用
 %   加权基本无振荡（WENO）格式进行估算。
+%   由于气体从Z=1流向Z=0，使用'downwind'格式。
 %   
 %%  
 %   $$ \frac{\partial f_j}{\partial Z}=\frac{f_{j+0.5}-f_{j-0.5}}{\Delta Z} $$
 %   
 %%  
-%   Weno中点格式用于计算两个体积单元边界处的值。
-%   由于速度会从负值变为正值，因此在两种速度
-%   情况下都计算WENO格式，然后为每个节点选择
-%   与正确速度对应的点。
-%   
-%%  
-    % 确定两个相邻有限体积单元之间的压力变化
-    dP = P(2:N+2)-P(1:N+1) ;
-    
-    % 确定压力变化为正和为负的位置
-    idx_f = find(dP <= 0)  ;
-    idx_b = find(dP >  0)  ;
-%   
-%%  
 %   压力：在体积单元中心和壁面上
-    Ph = zeros(N+1, 1);
-    Ph_f = WENO(P, 'upwind')   ;
-    Ph_b = WENO(P, 'downwind') ;
     
-    Ph(idx_f) = Ph_f(idx_f) ;
-    Ph(idx_b) = Ph_b(idx_b) ;
-    Ph(1)     = P(1)        ;
-    Ph(N+1)   = P(N+2)      ;
+    Ph          = WENO(P, 'downwind')    ;
     
     dpdz(2:N+1) = (Ph(2:N+1)-Ph(1:N))/dz ;
     dpdzh(2:N)  = (P(3:N+1)-P(2:N))/dz   ;
@@ -192,37 +160,15 @@ function derivatives = FuncCoCPressurization(~, state_vars, params, isotherm_par
 %   
 %%  
 %   摩尔分数：在体积单元中心
-    yh = zeros(N+1, 1);
-    yh_f = WENO(y, 'upwind')   ;
-    yh_b = WENO(y, 'downwind') ;
     
-    yh(idx_f) = yh_f(idx_f) ;
-    yh(idx_b) = yh_b(idx_b) ;
-    
-    if P(1) > P(2)
-        yh(1) = y(1)  ;
-    else
-        yh(1) = y(2)  ;
-    end 
-    yh(N+1)  = y(N+2) ;
+    yh          = WENO(y, 'downwind')    ;
     
     dydz(2:N+1) = (yh(2:N+1)-yh(1:N))/dz ;
 %   
 %%  
-%   塔温：在体积单元中心
-    Th = zeros(N+1, 1);
-    Th_f = WENO(T, 'upwind')   ;
-    Th_b = WENO(T, 'downwind') ;
+%   温度：在体积单元中心
     
-    Th(idx_f) = Th_f(idx_f) ;
-    Th(idx_b) = Th_b(idx_b) ;
-    
-    if P(1) > P(2)
-        Th(1) = T(1)   ;
-    else
-        Th(1) = T(2)   ;
-    end
-    Th(N+1)   = T(N+2) ;
+    Th          = WENO(T, 'downwind')    ;
     
     dTdz(2:N+1) = (Th(2:N+1)-Th(1:N))/dz ;
 %   
@@ -230,9 +176,6 @@ function derivatives = FuncCoCPressurization(~, state_vars, params, isotherm_par
 %   *二阶导数*
 %   
 %   二阶导数是基于节点上的值计算的。
-%   只需要计算温度和摩尔分数的二阶导数。
-%   需要注意的是，在塔的两端，没有发生扩散/传导，
-%   所以在导数值中这些被设为0。
 %   
 %%  
 %   $$ \frac{{\partial}^2 f_{j}}{\partial {Z}^2} = \frac{f_{j+1}+f_{j-1}-
@@ -252,15 +195,8 @@ function derivatives = FuncCoCPressurization(~, state_vars, params, isotherm_par
 %   
 %% 速度计算
 %   根据压力梯度计算气体在体积单元壁面处的间隙速度。
-%   注意：请记住，Ergun方程中的速度是表观速度，
-%   而不是间隙速度，这就是为什么在粘性项的分母中
-%   是epsilon^2而不是epsilon^3，动能项也是如此，
-%   其中是epsilon而不是epsilon^3。表观速度等于
-%   间隙速度乘以空隙率。
 %   
 %%  
-%   $$ U = v \cdot \varepsilon $$
-%   
 %   $$ - \frac{\partial \bar{P}}{\partial Z}\frac{P_0}{L} =
 %   \frac{150\mu(1-\varepsilon)^2}{4r_{p}\varepsilon^2}\bar{v}v_0 +
 %   \frac{1.75(1-\varepsilon)}{2r_{p}\varepsilon}
@@ -281,9 +217,6 @@ function derivatives = FuncCoCPressurization(~, state_vars, params, isotherm_par
 %   
 %%  
 %   *1) 吸附相质量平衡（组分1和2的摩尔负载量）*
-%       使用线性驱动力（LDF）模型计算气体的
-%       吸附速率。假设LDF传质系数在
-%       重要的压力和温度范围内是恒定的。
 %   
 %%  
 %   $$ \frac{\partial x_{i}}{\partial \tau}q_{s0}= k_{i}({q_{i}}^*-q_{i}) $$
@@ -306,10 +239,6 @@ function derivatives = FuncCoCPressurization(~, state_vars, params, isotherm_par
 %   
 %%  
 %   *2) 塔的能量平衡（塔温）*
-%       对于塔内的能量平衡，假设：
-%       * 固相和气相之间处于热平衡状态
-%       * 热传导同时通过固相和气相发生
-%       * 对流只在气相中发生
 %   
 %%  
 %   $$ \big[ \varepsilon C_{g}C_{p,g}+(1-\varepsilon)(C_{p,s}\rho_{s}+
@@ -320,42 +249,22 @@ function derivatives = FuncCoCPressurization(~, state_vars, params, isotherm_par
 %       \partial \bar{x_{i}}}{\partial \tau} $$
 %   
 %%  
-    % [J/m^3/K]
     sink_term = ((1-epsilon)*(ro_s*C_ps+q_s0*C_pa)+(epsilon.*ro_g(2:N+1).*C_pg)) ;
 %   
 %%  
-%   2.1) 计算由于塔内热传导（固相和气相）
-%        引起的温度变化
-%   
-%%  
-%   $$ \frac{K_z}{v_0L} \frac{\partial^2 \bar{T}}{\partial Z^2} $$
-%   
-%%  
+%   2.1) 热传导项
     transfer_term = K_z./v_0./L                             ;
     dTdt1(2:N+1)  = transfer_term.*d2Tdz2(2:N+1)./sink_term ;
 %   
 %%  
-%   2.2) 计算由于对流引起的温度变化
-%   
-%%  
-%   $$ -\varepsilon C_{g}C_{p,g} \bar{v}\frac{\partial \bar{T}}{\partial Z} $$
-%   
-%%  
+%   2.2) 对流项
     PvT          = Ph(1:N+1).*vh(1:N+1)./Th(1:N+1) ;
     Pv           = Ph(1:N+1).*vh(1:N+1)            ;
     dTdt2(2:N+1) = -epsilon.*C_pg.*P_0./R./T_0.*((Pv(2:N+1)-Pv(1:N))- ... 
                     T(2:N+1).*(PvT(2:N+1)-PvT(1:N)))./dz./sink_term      ;
 %   
 %%  
-%   2.3) 计算由于吸附/解吸焓变引起的温度变化
-%   
-%%  
-%   $$ \sum_{i} (1-\varepsilon)(-\Delta
-%   H_{i})\frac{q_{s0}}{T_{0}}\frac{\partial \bar{x_{i}}}{\partial \tau} $$
-%   
-%   $$ \Delta H_{i} = \Delta U_i - R\bar{T}T_{0} $$
-%   
-%%  
+%   2.3) 吸附/解吸热项
     generation_term_1 = (1-epsilon).*q_s0.*(-(deltaU_1-R*T(2:N+1)*T_0))./T_0 ;
     generation_term_2 = (1-epsilon).*q_s0.*(-(deltaU_2-R*T(2:N+1)*T_0))./T_0 ;
     
@@ -363,7 +272,7 @@ function derivatives = FuncCoCPressurization(~, state_vars, params, isotherm_par
                          generation_term_2.*dx2dt(2:N+1))./sink_term  ;
 %   
 %%  
-%   2.4) 所有温度导数的总和
+%   2.4) 总温度导数
     dTdt(2:N+1) = dTdt1(2:N+1) + dTdt2(2:N+1) + dTdt3(2:N+1) ;
 %   
 %%  
@@ -376,23 +285,23 @@ function derivatives = FuncCoCPressurization(~, state_vars, params, isotherm_par
 %      \bar{T}}{\partial \tau} $$
 %   
 %%  
-%   3.1) 计算由于对流引起的压力变化
+%   3.1) 对流项
     dPdt1(2:N+1) = -T(2:N+1).*(PvT(2:N+1)-PvT(1:N))./dz  ;
 %   
 %%  
-%   3.2) 计算由于吸附/解吸引起的压力变化
+%   3.2) 吸附/解吸项
     dPdt2(2:N+1) = -phi*T(2:N+1).*(dx1dt(2:N+1)+dx2dt(2:N+1)) ;
 %   
 %%  
-%   3.3) 计算由于温度变化引起的压力变化
+%   3.3) 温度变化项
     dPdt3(2:N+1) = P(2:N+1).*dTdt(2:N+1)./T(2:N+1)            ;
 %   
 %%  
-%   3.4) 所有压力变化的总和
+%   3.4) 总压力导数
     dPdt(2:N+1) = dPdt1(2:N+1) + dPdt2(2:N+1) + dPdt3(2:N+1)  ;
 %   
 %%  
-%   *4) 组分质量平衡（基于摩尔分数）*
+%   *4) 组分质量平衡*
 %   
 %%  
 %   $$ \frac{\partial y}{\partial \tau} = \frac{1}{Pe} \big(\frac{{
@@ -404,56 +313,36 @@ function derivatives = FuncCoCPressurization(~, state_vars, params, isotherm_par
 %      \frac{\partial\bar{x_{2}}}{\partial \tau}\big) $$
 %   
 %%  
-%   4.1) 计算由于扩散引起的摩尔分数变化
-%   
-%%  
-%   $$ \frac{1}{Pe} \big(\frac{{\partial}^2 y}{\partial {Z}^2}+\frac{1}{
-%      \bar{P}}\frac{\partial \bar{P}}{\partial Z}\frac{\partial y}{
-%      \partial Z}-\frac{1}{\bar{T}}\frac{\partial \bar{T}}{\partial Z}
-%      \frac{\partial y}{\partial Z} \big) $$
-%   
-%%  
+%   4.1) 扩散项
     dydt1(2:N+1) = (1/Pe)*(d2ydz2(2:N+1)+(dydz(2:N+1).*dpdz(2:N+1)./P(2:N+1))... 
                   -(dydz(2:N+1).*dTdz(2:N+1)./T(2:N+1)))                        ;
 %   
 %%  
-%   4.2) 计算由于对流引起的摩尔分数变化
-%   
-%%  
-%   $$ -\bar{v}\frac{\partial y}{\partial Z} $$
-%   
-%%  
+%   4.2) 对流项
     ypvt         = yh(1:N+1).*Ph(1:N+1).*vh(1:N+1)./Th(1:N+1)        ;
     dydt2(2:N+1) = -(T(2:N+1)./P(2:N+1)).*((ypvt(2:N+1)-ypvt(1:N))... 
                    -y(2:N+1).*(PvT(2:N+1)-PvT(1:N)))./dz             ;
 %   
 %%  
-%   4.3) 计算由于吸附/解吸引起的摩尔分数变化
-%   
-%%  
-% $$ \frac{\Psi \bar{T}}{\bar{P}} \big((y-1)\frac{\partial \bar{x_{1}}}{
-%    \partial \tau}+y\frac{\partial \bar{x_{2}}}{\partial \tau}\big) $$
-%   
-%%  
+%   4.3) 吸附/解吸项
     dydt3(2:N+1) = (phi*T(2:N+1)./P(2:N+1)).*((y(2:N+1)-1).*dx1dt(2:N+1)... 
                   + y(2:N+1).*dx2dt(2:N+1))                                ;
 %   
 %%  
-%   4.4) 所有摩尔分数变化的总和
+%   4.4) 总摩尔分数导数
     dydt(2:N+1) = dydt1(2:N+1) + dydt2(2:N+1) + dydt3(2:N+1) ;
 %   
 %%  边界导数
-    %dPdt(1)    = tau*(1-P(1))       ;
-	dPdt(1)    = tau*L/v_0*(1-P(1)) ;
-    dPdt(N+2)  = dPdt(N+1)          ;
-    dydt(1)    = 0                  ;
-    dydt(N+2)  = dydt(N+1)          ;
-    dx1dt(1)   = 0                  ;
-    dx2dt(1)   = 0                  ;
-    dx1dt(N+2) = 0                  ;
-    dx2dt(N+2) = 0                  ;
-    dTdt(1)    = 0                  ;
-    dTdt(N+2)  = dTdt(N+1)          ;
+    dPdt(1)    = dPdt(2)                    ; % Closed end Z=0
+    dPdt(N+2)  = tau*L/v_0*(1 - P(N+2))     ; % Pressurizing end Z=1
+    dydt(1)    = dydt(2)                    ; % Closed end Z=0
+    dydt(N+2)  = 0                          ; % Fixed composition at Z=1
+    dx1dt(1)   = 0                          ;
+    dx2dt(1)   = 0                          ;
+    dx1dt(N+2) = 0                          ;
+    dx2dt(N+2) = 0                          ;
+    dTdt(1)    = dTdt(2)                    ; % Closed end Z=0
+    dTdt(N+2)  = 0                          ; % Fixed temperature at Z=1
 %   
 %%  将导数导出到输出
     derivatives(1:N+2)        = dPdt(1:N+2)  ;
