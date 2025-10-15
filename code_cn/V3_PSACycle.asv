@@ -1,4 +1,4 @@
-function  [objectives, constraints, a, b, c, d, e, t1, t2, t3, t4, t5] = V2_PSACycle(vars, material, x0, type, N, it_disp)
+function  [objectives, constraints, a, b, c, d, e, t1, t2, t3, t4, t5, t6] = V3_PSACycle(vars, material, x0, type, N, it_disp)
 %Skarstrom: 模拟一个五步改进型Skarstrom变压吸附循环
 %   本函数能够模拟一个五步改进型Skarstrom变压吸附循环，
 %   并提供状态变量和过程目标。由于通量计算具有内在的
@@ -124,7 +124,7 @@ function  [objectives, constraints, a, b, c, d, e, t1, t2, t3, t4, t5] = V2_PSAC
     objectives  = [0, 0]    ;
     
     % 输入参数
-    InputParams     = V2_ProcessInputParameters(vars, material, N) ;
+    InputParams     = V3_ProcessInputParameters(vars, material, N) ;
     Params          = InputParams{1}                  ;
     IsothermParams  = InputParams{2}                  ;
     Times           = InputParams{3}                  ;
@@ -159,12 +159,18 @@ function  [objectives, constraints, a, b, c, d, e, t1, t2, t3, t4, t5] = V2_PSAC
     CoCPressurization_fxn   = @(t, x) FuncCoCPressurization(t, x, Params, IsothermParams)   ;
     Adsorption_fxn          = @(t, x) FuncAdsorption(t, x, Params, IsothermParams)          ;
     HeavyReflux_fxn         = @(t, x) FuncHeavyReflux(t, x, Params, IsothermParams)         ;
+
+    CoCDepressurization_fxn = @(t, x) FuncCoCDepressurization(t, x, Params, IsothermParams) ;
+
     CnCDepressurization_fxn = @(t, x) FuncCnCDepressurization(t, x, Params, IsothermParams) ;
     
     % 检索PSA各步骤的时间
     t_CoCPres   = Times(1) ;
     t_ads       = Times(2) ;
     t_HR        = Times(6) ;
+
+    t_CoCDepres = Times(5) ;
+
     t_CnCDepres = Times(3) ;
     t_LR        = Times(4) ;
     
@@ -172,6 +178,9 @@ function  [objectives, constraints, a, b, c, d, e, t1, t2, t3, t4, t5] = V2_PSAC
     tau_CoCPres   = t_CoCPres*v_0/L   ;
     tau_ads       = t_ads*v_0/L       ;
     tau_HR        = t_HR*v_0/L        ;
+
+    tau_CoCDepres = t_CoCDepres*v_0/L ;
+
     tau_CnCDepres = t_CnCDepres*v_0/L ;
     tau_LR        = t_LR*v_0/L        ;
     
@@ -197,8 +206,11 @@ function  [objectives, constraints, a, b, c, d, e, t1, t2, t3, t4, t5] = V2_PSAC
     opts1 = odeset( 'JPattern', JacPressurization(N), 'RelTol', 1e-6)       ;
     opts2 = odeset( 'JPattern', JacAdsorption(N), 'RelTol', 1e-6)           ;
     opts3 = odeset( 'JPattern', JacAdsorption(N), 'RelTol', 1e-6)           ;
-    opts4 = odeset( 'JPattern', Jac_CnCDepressurization(N), 'RelTol', 1e-6) ;
-    opts5 = odeset( 'JPattern', Jac_LightReflux(N), 'RelTol', 1e-6)         ;
+    
+    opts4 = odeset( 'RelTol', 1e-6) ;
+
+    opts5 = odeset( 'JPattern', Jac_CnCDepressurization(N), 'RelTol', 1e-6) ;
+    opts6 = odeset( 'JPattern', Jac_LightReflux(N), 'RelTol', 1e-6)         ;
 %   
 %% 开始模拟PSA循环。如果第一个约束被违反，则跳过此部分。
 %   运行模拟，直到温度、气体摩尔分数
@@ -212,11 +224,17 @@ function  [objectives, constraints, a, b, c, d, e, t1, t2, t3, t4, t5] = V2_PSAC
     c_in  = [] ;
     d_in  = [] ;
     e_in  = [] ;
+
+    f_in  = [] ;
+
     a_fin = [] ;
     b_fin = [] ;
     c_fin = [] ;
     d_fin = [] ;
     e_fin = [] ;
+    
+    f_fin = [] ;
+
     
 if constraints(1) == 0
     
@@ -345,11 +363,43 @@ if constraints(1) == 0
         x30(4*N+9)  = x30(4*N+10) ;   % BC z=0 T: T_1   = T_2
         x30(5*N+10) = x30(5*N+9)  ;   % BC z=1 T: T_N+2 = T_N+1
         
-        % 存储逆流降压步骤的初始条件 - 所有迭代
+        % 存储并流降压步骤的初始条件 - 所有迭代
         d_in = [d_in; x30'] ;
-%       
-    %% 4. 模拟逆流降压步骤
-        [t4, d] = ode15s(CnCDepressurization_fxn, [0 tau_CnCDepres], x30, opts4) ;
+%
+    %% 4. 模拟并流降压步骤
+        [t4, f] = ode15s(CoCDepressurization_fxn, [0 tau_CoCDepres], x30, opts4) ;
+        
+        % 修正输出（清理模拟结果）
+        idx             = find(f(:, 2) < f(:, 1))         ;  % P_2  < P_1
+        f(idx ,1)       = f(idx, 2)                       ;  % P_1  = P_2
+        f(:, 2*N+5)     = f(:, 2*N+6)                     ;  % x1_1 = x1_2
+        f(:, 3*N+7)     = f(:, 3*N+8)                     ;  % x2_1 = x2_2
+        f(:, 3*N+6)     = f(:, 3*N+5)                     ;  % x1_N+2 = x1_N+1
+        f(:, 4*N+8)     = f(:, 4*N+7)                     ;  % x2_N+2 = x2_N+1
+        f(:, N+3:2*N+4) = max(min(f(:, N+3:2*N+4), 1), 0) ;  % 0 <= y => 1
+        
+        % 存储逆流降压步骤的最终条件 - 所有迭代
+        % 以及塔前、后端处的CO2和总摩尔数
+        [totalFront, CO2Front, ~] = StreamCompositionCalculator(t4*L/v_0, f, 'HPEnd') ;
+        [totalEnd, CO2End, ~]     = StreamCompositionCalculator(t4*L/v_0, f, 'LPEnd') ;
+        f_fin = [f_fin; f(end, :), CO2Front, totalFront, CO2End, totalEnd]            ;
+
+           
+        % 为轻组分回流步骤准备初始条件
+        x40         = f(end,:)'    ;  % 上一步的最终状态是
+                                      % 当前步骤的初始状态
+        x40(1)      = P_l/P_0      ;  % BC z=0 P: P_1   = P_l/P_0
+        %x40(N+2)    = 2*P_l/P_0    ;  % BC z=1 P: P_N+2 = 2*P_l/P_0 % 注意：注意这里的alpha，在另一侧代码中只是2
+        x40(N+3)    = x40(N+4)     ;  % BC z=0 y: y_1   = y_2
+        x40(2*N+4)  = y_LR         ;  % BC z=1 y: y_N+2 = y_LR
+        x40(4*N+9)  = x40(4*N+10)  ;  % BC z=0 T: T_1   = T_2
+        x40(5*N+10) = T_LR/T_0     ;  % BC z=1 T: T_N+2 = T_LR/T_0
+        
+        % 存储轻组分回流步骤的初始条件 - 所有迭代
+        f_in = [f_in; x40'] ;
+% 
+    %% 5. 模拟逆流降压步骤
+        [t5, d] = ode15s(CnCDepressurization_fxn, [0 tau_CnCDepres], x40, opts5) ;
         
         % 修正输出（清理模拟结果）
         idx             = find(d(:, 2) < d(:, 1))         ;  % P_2  < P_1
@@ -362,8 +412,8 @@ if constraints(1) == 0
         
         % 存储逆流降压步骤的最终条件 - 所有迭代
         % 以及塔前、后端处的CO2和总摩尔数
-        [totalFront, CO2Front, TFront] = StreamCompositionCalculator(t4*L/v_0, d, 'HPEnd') ;
-        [totalEnd, CO2End, ~]     = StreamCompositionCalculator(t4*L/v_0, d, 'LPEnd') ;
+        [totalFront, CO2Front, TFront] = StreamCompositionCalculator(t5*L/v_0, d, 'HPEnd') ;
+        [totalEnd, CO2End, ~]     = StreamCompositionCalculator(t5*L/v_0, d, 'LPEnd') ;
         d_fin = [d_fin; d(end, :), CO2Front, totalFront, CO2End, totalEnd]            ;
 
         % 计算重组分回流步骤所需的参数
@@ -377,20 +427,20 @@ if constraints(1) == 0
         HeavyReflux_fxn = @(t, x) FuncHeavyReflux(t, x, Params, IsothermParams) ;
         
         % 为轻组分回流步骤准备初始条件
-        x40         = d(end,:)'    ;  % 上一步的最终状态是
+        x50         = d(end,:)'    ;  % 上一步的最终状态是
                                       % 当前步骤的初始状态
-        x40(1)      = P_l/P_0      ;  % BC z=0 P: P_1   = P_l/P_0
-        %x40(N+2)    = 2*P_l/P_0    ;  % BC z=1 P: P_N+2 = 2*P_l/P_0 % 注意：注意这里的alpha，在另一侧代码中只是2
-        x40(N+3)    = x40(N+4)     ;  % BC z=0 y: y_1   = y_2
-        x40(2*N+4)  = y_LR         ;  % BC z=1 y: y_N+2 = y_LR
-        x40(4*N+9)  = x40(4*N+10)  ;  % BC z=0 T: T_1   = T_2
-        x40(5*N+10) = T_LR/T_0     ;  % BC z=1 T: T_N+2 = T_LR/T_0
+        x50(1)      = P_l/P_0      ;  % BC z=0 P: P_1   = P_l/P_0
+        %x50(N+2)    = 2*P_l/P_0    ;  % BC z=1 P: P_N+2 = 2*P_l/P_0 % 注意：注意这里的alpha，在另一侧代码中只是2
+        x50(N+3)    = x50(N+4)     ;  % BC z=0 y: y_1   = y_2
+        x50(2*N+4)  = y_LR         ;  % BC z=1 y: y_N+2 = y_LR
+        x50(4*N+9)  = x50(4*N+10)  ;  % BC z=0 T: T_1   = T_2
+        x50(5*N+10) = T_LR/T_0     ;  % BC z=1 T: T_N+2 = T_LR/T_0
         
         % 存储轻组分回流步骤的初始条件 - 所有迭代
-        e_in = [e_in; x40'] ;
+        e_in = [e_in; x50'] ;
 %       
-    %% 5. 模拟轻组分回流步骤
-        [t5, e] = ode15s(LightReflux_fxn, [0 tau_LR], x40, opts5) ;
+    %% 6. 模拟轻组分回流步骤
+        [t6, e] = ode15s(LightReflux_fxn, [0 tau_LR], x50, opts6) ;
         
         % 修正输出（清理模拟结果）
         idx             = find(e(:, 2) < e(:, 1))         ;  % P_2  < P_1
@@ -406,9 +456,9 @@ if constraints(1) == 0
         
         % 存储轻组分回流步骤的最终条件 - 所有迭代
         % 以及塔前、后端处的CO2和总摩尔数
-        % [totalFront, CO2Front, TFront]  = StreamCompositionCalculator(t5*L/v_0, e, 'HPEnd') ;
-        [totalFront, CO2Front, ~]  = StreamCompositionCalculator(t5*L/v_0, e, 'HPEnd') ;
-        [totalEnd, CO2End, ~]           = StreamCompositionCalculator(t5*L/v_0, e, 'LPEnd') ;
+        % [totalFront, CO2Front, TFront]  = StreamCompositionCalculator(t6*L/v_0, e, 'HPEnd') ;
+        [totalFront, CO2Front, ~]  = StreamCompositionCalculator(t6*L/v_0, e, 'HPEnd') ;
+        [totalEnd, CO2End, ~]           = StreamCompositionCalculator(t6*L/v_0, e, 'LPEnd') ;
         e_fin = [e_fin; e(end, :), CO2Front, totalFront, CO2End, totalEnd]                  ;
         
         % % 计算重组分回流步骤所需的参数
@@ -448,7 +498,7 @@ if constraints(1) == 0
         % 状态的CSS条件
         CSS_states = norm(statesIC-statesFC) ;
         % 质量平衡条件
-        [~, ~, massBalance] = ProcessEvaluation(a, b, c, d, e, t1, t2, t3, t4, t5) ;
+        [~, ~, massBalance] = ProcessEvaluation(a, b, c, d, e, t1, t2, t3, t4, t5, t6) ;
         
         % 检查CSS是否已达到
         if CSS_states <= 1e-3 && abs(massBalance-1) <= 0.005
@@ -472,7 +522,7 @@ if constraints(1) == 0
     
     %% 过程和经济性评估
     
-    [purity, recovery, MB] = ProcessEvaluation(a, b, c, d, e, t1, t2, t3, t4, t5) ;
+    [purity, recovery, MB] = ProcessEvaluation(a, b, c, d, e, t1, t2, t3, t4, t5, t6) ;
     
     desired_flow = EconomicParams(1) ;
     % cycle_time   = EconomicParams(3) ;
@@ -696,8 +746,11 @@ end
 	%   
     %% 计算塔的纯度、回收率和质量平衡
         
-        purity       = (n_CO2_CnCDepres_HPEnd+(1-beta)*n_CO2_LR_HPEnd)/(n_tot_CnCDepres_HPEnd+(1-beta)*n_tot_LR_HPEnd) ;
-        recovery     = (n_CO2_CnCDepres_HPEnd+(1-beta)*n_CO2_LR_HPEnd)/(n_CO2_CoCPres_HPEnd+n_CO2_ads_HPEnd)           ;
+        % purity       = (n_CO2_CnCDepres_HPEnd+(1-beta)*n_CO2_LR_HPEnd)/(n_tot_CnCDepres_HPEnd+(1-beta)*n_tot_LR_HPEnd) ;
+        % recovery     = (n_CO2_CnCDepres_HPEnd+(1-beta)*n_CO2_LR_HPEnd)/(n_CO2_CoCPres_HPEnd+n_CO2_ads_HPEnd)           ;
+
+        purity       = ((1-beta)*n_CO2_CnCDepres_HPEnd+n_CO2_LR_HPEnd)/((1-beta)*n_tot_CnCDepres_HPEnd+n_tot_LR_HPEnd) ;
+        recovery     = ((1-beta)*n_CO2_CnCDepres_HPEnd+n_CO2_LR_HPEnd)/(n_CO2_CoCPres_HPEnd+n_CO2_ads_HPEnd)           ;
         
         mass_balance = (n_CO2_CnCDepres_HPEnd+n_CO2_ads_LPEnd+n_CO2_HR_LPEnd+n_CO2_LR_HPEnd)/... 
                        (n_CO2_CoCPres_HPEnd+n_CO2_ads_HPEnd+n_CO2_HR_HPEnd+n_CO2_LR_LPEnd)                             ;

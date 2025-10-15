@@ -1,4 +1,4 @@
-function InputParams = V2_ProcessInputParameters(process_vars, material, N)
+function InputParams = V3_ProcessInputParameters(process_vars, material, N)
 %InputParameters: 指定PSA模拟的输入参数
 %   有限体积数始终是调用脚本/
 %   函数的输入。此外，x 用于允许从调用脚本/
@@ -18,7 +18,7 @@ function InputParams = V2_ProcessInputParameters(process_vars, material, N)
 	P_l         = process_vars(8)       ;   % 吹扫压力 [Pa]
     t_pres      = process_vars(9)       ;   % 加压步骤时间 [s]
     t_CnCdepres = process_vars(10)      ;   % 逆流降压步骤时间 [s]
-    % t_CoCdepres = process_vars(8)       ;   % 逆流降压步骤时间 [s]
+    t_CoCdepres = process_vars(11)      ;   % 并流降压步骤时间 [s]
     
     % 检索取决于吸附剂材料的参数
     material_propertry = material{1}    ;
@@ -27,9 +27,9 @@ function InputParams = V2_ProcessInputParameters(process_vars, material, N)
     % 操作床层参数
     % t_pres      = 20                    ;   % 最大/加压步骤时间 [s]
     % t_CnCdepres = 30                    ;   % 最大/逆流降压步骤时间 [s]
-    t_CoCdepres = 70                    ;   % 最大/逆流降压步骤时间 [s]
+    % t_CoCdepres = 70                    ;   % 最大/并流降压步骤时间 [s]
     t_LR        = t_ads                 ;   % 轻组分回流步骤时间 [s]
-    t_HR        = t_CnCdepres                  ;   % 重组分回流步骤时间 [s]
+    t_HR        = t_LR                  ;   % 重组分回流步骤时间 [s]
     tau         = 0.5                   ;   % 用于确定压力变化速度的参数
     P_inlet     = 1.02                  ;   % 吸附步骤入口处的进料气压力
     
@@ -147,7 +147,7 @@ function InputParams = V2_ProcessInputParameters(process_vars, material, N)
     CEPCI                                 = 536.4        ;   % 当年月份的CEPCI（2016年1月）。
     
     % 根据要模拟的循环更改此项
-    cycle_time = t_pres + t_ads + t_HR + t_CnCdepres + t_LR ;   % 1个循环所需的总时间 [s]
+    cycle_time = t_pres + t_ads + t_HR + t_CoCdepres + t_CnCdepres + t_LR ;   % 1个循环所需的总时间 [s]
     
     EconomicParams    = zeros(6, 1)              ;
     EconomicParams(1) = desired_flow             ;
