@@ -29,7 +29,7 @@ function InputParams = V3_ProcessInputParameters(process_vars, material, N)
     % t_CnCdepres = 30                    ;   % 最大/逆流降压步骤时间 [s]
     % t_CoCdepres = 70                    ;   % 最大/并流降压步骤时间 [s]
     t_LR        = t_ads                 ;   % 轻组分回流步骤时间 [s]
-    t_HR        = t_LR                  ;   % 重组分回流步骤时间 [s]
+    t_HR        = t_CnCdepres                  ;   % 重组分回流步骤时间 [s]
     tau         = 0.5                   ;   % 用于确定压力变化速度的参数
     P_inlet     = 1.02                  ;   % 吸附步骤入口处的进料气压力
     

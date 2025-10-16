@@ -508,8 +508,8 @@ if constraints(1) == 0
     % 计算循环中回收的CO2量 [吨 CO_2 / 循环 和 mol/循环]
     [~, n_CO2_CnCD, ~]   = StreamCompositionCalculator(t4*L/v_0, d, 'HPEnd') ;
     [~, n_CO2_LR, ~]     = StreamCompositionCalculator(t5*L/v_0, e,  'HPEnd') ;
-    CO2_recovered_cycle  = (n_CO2_CnCD+(1-beta)*n_CO2_LR)*r_in^2*pi()*MW_CO2/1e3 ;        
-    CO2_recovered_cycle2 = (n_CO2_CnCD+(1-beta)*n_CO2_LR)*r_in^2*pi() ;
+    CO2_recovered_cycle  = ((1-beta)*n_CO2_CnCD+n_CO2_LR)*r_in^2*pi()*MW_CO2/1e3 ;        
+    CO2_recovered_cycle2 = ((1-beta)*n_CO2_CnCD+n_CO2_LR)*r_in^2*pi() ;
     
     %计算塔的生产率和能量需求
     mass_adsorbent     = L*pi()*r_in^2*(1-epsilon)*ro_s                    ;
@@ -530,7 +530,7 @@ if constraints(1) == 0
             con = purity - y_0            ;
             if con < 0
                 constraints(3) = abs(con) ;
-                constraints(3) = 0        ;
+                % constraints(3) = 0        ;
             end
             
         case 'EconomicEvaluation'
@@ -701,7 +701,10 @@ end
 
         purity       = ((1-beta)*n_CO2_CnCDepres_HPEnd+n_CO2_LR_HPEnd)/((1-beta)*n_tot_CnCDepres_HPEnd+n_tot_LR_HPEnd) ;
         recovery     = ((1-beta)*n_CO2_CnCDepres_HPEnd+n_CO2_LR_HPEnd)/(n_CO2_CoCPres_HPEnd+n_CO2_ads_HPEnd)           ;
-        
+
+        % purity       = n_CO2_CnCDepres_HPEnd/n_tot_CnCDepres_HPEnd ;
+        % recovery     = (1-beta)*n_CO2_CnCDepres_HPEnd/(n_CO2_CoCPres_HPEnd+n_CO2_ads_HPEnd);   
+
         mass_balance = (n_CO2_CnCDepres_HPEnd+n_CO2_ads_LPEnd+n_CO2_HR_LPEnd+n_CO2_LR_HPEnd)/... 
                        (n_CO2_CoCPres_HPEnd+n_CO2_ads_HPEnd+n_CO2_HR_HPEnd+n_CO2_LR_LPEnd)                             ;
     %   

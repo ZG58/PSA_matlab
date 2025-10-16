@@ -252,6 +252,7 @@ if constraints(1) == 0
         a(idx ,1)       = a(idx, 2)                       ;  % P_1  = P_2
         a(idx, N+3)     = a(idx, N+4)                     ;  % y_1  = y_2
         a(idx, 4*N+9)   = a(idx, 4*N+10)                  ;  % T_1  = T_2
+
         a(:, 2*N+5)     = a(:, 2*N+6)                     ;  % x1_1 = x1_2
         a(:, 3*N+7)     = a(:, 3*N+8)                     ;  % x2_1 = x2_2
         a(:, 3*N+6)     = a(:, 3*N+5)                     ;  % x1_N+2 = x1_N+1
@@ -286,6 +287,7 @@ if constraints(1) == 0
         % 修正输出（清理模拟结果）
         idx             = find(b(:, N+1) < 1)             ;  % P_N+1 < 1 = P_N+2
         b(idx, N+2)     = b(idx, N+1)                     ;  % P_N+2 = P_N+1
+
         b(:, 2*N+5)     = b(:, 2*N+6)                     ;  % x1_1 = x1_2
         b(:, 3*N+7)     = b(:, 3*N+8)                     ;  % x2_1 = x2_2
         b(:, 3*N+6)     = b(:, 3*N+5)                     ;  % x1_N+2 = x1_N+1
@@ -353,7 +355,7 @@ if constraints(1) == 0
         [totalEnd, CO2End, ~]     = StreamCompositionCalculator(t3*L/v_0, c, 'LPEnd') ;
         c_fin = [c_fin; c(end, :), CO2Front, totalFront, CO2End, totalEnd]            ;
         
-        % 为逆流降压步骤准备初始条件
+        % 为并流降压步骤准备初始条件
         x30         = c(end,:)'   ;   % 上一步的最终状态是
                                       % 当前步骤的初始状态
         x30(1)      = x30(2)      ;   % BC z=0 P: P_1   = P_2
@@ -370,8 +372,8 @@ if constraints(1) == 0
         [t4, f] = ode15s(CoCDepressurization_fxn, [0 tau_CoCDepres], x30, opts4) ;
         
         % 修正输出（清理模拟结果）
-        idx             = find(f(:, 2) < f(:, 1))         ;  % P_2  < P_1
-        f(idx ,1)       = f(idx, 2)                       ;  % P_1  = P_2
+        idx             = find(f(:, N+1) < f(:, N+2))         ;  % P_N+1 < 1 = P_N+2
+        f(idx ,N+2)     = f(idx, N+1)                     ;  % P_N+2 = P_N+1
         f(:, 2*N+5)     = f(:, 2*N+6)                     ;  % x1_1 = x1_2
         f(:, 3*N+7)     = f(:, 3*N+8)                     ;  % x2_1 = x2_2
         f(:, 3*N+6)     = f(:, 3*N+5)                     ;  % x1_N+2 = x1_N+1
@@ -386,14 +388,14 @@ if constraints(1) == 0
 
            
         % 为轻组分回流步骤准备初始条件
-        x40         = f(end,:)'    ;  % 上一步的最终状态是
+        x40         = f(end,:)'   ;   % 上一步的最终状态是
                                       % 当前步骤的初始状态
-        x40(1)      = P_l/P_0      ;  % BC z=0 P: P_1   = P_l/P_0
-        %x40(N+2)    = 2*P_l/P_0    ;  % BC z=1 P: P_N+2 = 2*P_l/P_0 % 注意：注意这里的alpha，在另一侧代码中只是2
-        x40(N+3)    = x40(N+4)     ;  % BC z=0 y: y_1   = y_2
-        x40(2*N+4)  = y_LR         ;  % BC z=1 y: y_N+2 = y_LR
-        x40(4*N+9)  = x40(4*N+10)  ;  % BC z=0 T: T_1   = T_2
-        x40(5*N+10) = T_LR/T_0     ;  % BC z=1 T: T_N+2 = T_LR/T_0
+        x40(1)      = x40(2)      ;   % BC z=0 P: P_1   = P_2
+        x40(N+2)    = x40(N+1)    ;   % BC z=1 P: P_N+2 = P_N+1
+        x40(N+3)    = x40(N+4)    ;   % BC z=0 y: y_1   = y_2
+        x40(2*N+4)  = x40(2*N+3)  ;   % BC z=1 y: y_N+2 = y_N+1
+        x40(4*N+9)  = x40(4*N+10) ;   % BC z=0 T: T_1   = T_2
+        x40(5*N+10) = x40(5*N+9)  ;   % BC z=1 T: T_N+2 = T_N+1
         
         % 存储轻组分回流步骤的初始条件 - 所有迭代
         f_in = [f_in; x40'] ;
@@ -498,7 +500,7 @@ if constraints(1) == 0
         % 状态的CSS条件
         CSS_states = norm(statesIC-statesFC) ;
         % 质量平衡条件
-        [~, ~, massBalance] = ProcessEvaluation(a, b, c, d, e, t1, t2, t3, t4, t5, t6) ;
+        [~, ~, massBalance] = ProcessEvaluation(a, b, c, f, d, e, t1, t2, t3, t4, t5, t6) ;
         
         % 检查CSS是否已达到
         if CSS_states <= 1e-3 && abs(massBalance-1) <= 0.005
@@ -522,11 +524,11 @@ if constraints(1) == 0
     
     %% 过程和经济性评估
     
-    [purity, recovery, MB] = ProcessEvaluation(a, b, c, d, e, t1, t2, t3, t4, t5, t6) ;
+    [purity, recovery, MB] = ProcessEvaluation(a, b, c, f, d, e, t1, t2, t3, t4, t5, t6) ;
     
     desired_flow = EconomicParams(1) ;
     % cycle_time   = EconomicParams(3) ;
-    cycle_time = t_CoCPres + t_ads + t_HR + t_CnCDepres + t_LR       ;
+    cycle_time = t_CoCPres + t_ads + t_HR + t_CoCDepres + t_CnCDepres + t_LR       ;
     
     % 计算循环期间供给的烟气量
     [n_tot_pres, ~, ~] = StreamCompositionCalculator(t1*L/v_0, a, 'HPEnd') ;
@@ -547,17 +549,17 @@ if constraints(1) == 0
     E_HR    = CompressionEnergy(t3*L/v_0, c, 1e5)   ; % kWh
     
     % 计算逆流降压步骤所需的能量
-    E_bldwn = VacuumEnergy(t4*L/v_0, d, 1e5)        ; % kWh
+    E_bldwn = VacuumEnergy(t5*L/v_0, d, 1e5)        ; % kWh
     
     % 计算轻组分回流步骤所需的能量
-    E_evac  = VacuumEnergy(t5*L/v_0, e, 1e5)        ; % kWh
+    E_evac  = VacuumEnergy(t6*L/v_0, e, 1e5)        ; % kWh
     
     % 计算总能量需求
     energy_per_cycle = E_pres + E_feed + E_HR + E_bldwn + E_evac ; % [kWh / 循环]
     
     % 计算循环中回收的CO2量 [吨 CO_2 / 循环 和 mol/循环]
-    [~, n_CO2_CnCD, ~]   = StreamCompositionCalculator(t4*L/v_0, d, 'HPEnd') ;
-    [~, n_CO2_LR, ~]     = StreamCompositionCalculator(t5*L/v_0, e,  'HPEnd') ;
+    [~, n_CO2_CnCD, ~]   = StreamCompositionCalculator(t5*L/v_0, d, 'HPEnd') ;
+    [~, n_CO2_LR, ~]     = StreamCompositionCalculator(t6*L/v_0, e,  'HPEnd') ;
     CO2_recovered_cycle  = (n_CO2_CnCD+(1-beta)*n_CO2_LR)*r_in^2*pi()*MW_CO2/1e3 ;        
     CO2_recovered_cycle2 = (n_CO2_CnCD+(1-beta)*n_CO2_LR)*r_in^2*pi() ;
     
@@ -580,7 +582,7 @@ if constraints(1) == 0
             con = purity - y_0            ;
             if con < 0
                 constraints(3) = abs(con) ;
-                constraints(3) = 0        ;
+                % constraints(3) = 0        ;
             end
             
         case 'EconomicEvaluation'
@@ -740,9 +742,12 @@ end
         [~, n_CO2_ads_LPEnd, ~]                           = StreamCompositionCalculator(tau{2}, step{2}, 'LPEnd') ;
         [~, n_CO2_HR_LPEnd, ~]                            = StreamCompositionCalculator(tau{3}, step{3}, 'LPEnd') ;
         [~, n_CO2_HR_HPEnd, ~]                            = StreamCompositionCalculator(tau{3}, step{3}, 'HPEnd') ;
-        [n_tot_CnCDepres_HPEnd, n_CO2_CnCDepres_HPEnd, ~] = StreamCompositionCalculator(tau{4}, step{4}, 'HPEnd') ;
-        [~, n_CO2_LR_LPEnd, ~]                            = StreamCompositionCalculator(tau{5}, step{5}, 'LPEnd') ;
-        [n_tot_LR_HPEnd, n_CO2_LR_HPEnd, ~]               = StreamCompositionCalculator(tau{5}, step{5}, 'HPEnd') ;
+        
+        [~, n_CO2_CoCDepres_LPEnd, ~]                     = StreamCompositionCalculator(tau{4}, step{4}, 'LPEnd') ;
+
+        [n_tot_CnCDepres_HPEnd, n_CO2_CnCDepres_HPEnd, ~] = StreamCompositionCalculator(tau{5}, step{5}, 'HPEnd') ;
+        [~, n_CO2_LR_LPEnd, ~]                            = StreamCompositionCalculator(tau{6}, step{6}, 'LPEnd') ;
+        [n_tot_LR_HPEnd, n_CO2_LR_HPEnd, ~]               = StreamCompositionCalculator(tau{6}, step{6}, 'HPEnd') ;
 	%   
     %% 计算塔的纯度、回收率和质量平衡
         
@@ -751,8 +756,11 @@ end
 
         purity       = ((1-beta)*n_CO2_CnCDepres_HPEnd+n_CO2_LR_HPEnd)/((1-beta)*n_tot_CnCDepres_HPEnd+n_tot_LR_HPEnd) ;
         recovery     = ((1-beta)*n_CO2_CnCDepres_HPEnd+n_CO2_LR_HPEnd)/(n_CO2_CoCPres_HPEnd+n_CO2_ads_HPEnd)           ;
+
+        % purity       = n_CO2_CnCDepres_HPEnd/n_tot_CnCDepres_HPEnd ;
+        % recovery     = (1-beta)*n_CO2_CnCDepres_HPEnd/(n_CO2_CoCPres_HPEnd+n_CO2_ads_HPEnd);        
         
-        mass_balance = (n_CO2_CnCDepres_HPEnd+n_CO2_ads_LPEnd+n_CO2_HR_LPEnd+n_CO2_LR_HPEnd)/... 
+        mass_balance = (n_CO2_CnCDepres_HPEnd+n_CO2_ads_LPEnd+n_CO2_HR_LPEnd+n_CO2_LR_HPEnd+n_CO2_CoCDepres_LPEnd)/... 
                        (n_CO2_CoCPres_HPEnd+n_CO2_ads_HPEnd+n_CO2_HR_HPEnd+n_CO2_LR_LPEnd)                             ;
     %   
     end 

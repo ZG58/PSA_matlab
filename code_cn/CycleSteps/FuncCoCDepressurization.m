@@ -1,6 +1,6 @@
 function derivatives = FuncCoCDepressurization(~, state_vars, params, isotherm_params)
 %#codegen
-%逆流降压：计算逆流降压步骤中状态变量的变化
+%逆流降压：计算并流降压步骤中状态变量的变化
 %   与MATLAB ode求解器（ode15s）结合使用，求解变压吸附（PSA）步骤的偏微分方程组。
 %   该偏微分方程组通过使用有限体积法（FVM）求解，
 %   其中空间域被离散为N个体积单元。

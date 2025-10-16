@@ -20,7 +20,7 @@ function [ objectives, constraints ] = V3_PSACycleSimulation( x, material, type,
     % x(8)                                    % 逆流降压步骤时间 [s]
     % x(9)                                    % 逆流降压步骤时间 [s]
 
-    process_variables = [1.0, x(1), x(1)*x(4)/8.314/313.15,  x(2),  x(3),  x(5), 1e4, x(6), x(7), x(8), x(9)] ;
+    process_variables = [1.0, x(1), x(1)*x(4)/8.314/313.15,  x(2),  x(3),  x(5), 1e5, x(6), x(7), x(8), x(9)] ;
 	
 	try
     [objectives, constraints] = V3_PSACycle(process_variables, material, [], type, N) ;
