@@ -31,7 +31,7 @@ material{2} = IsothermParams     ;
 Function = @(x) V3_PSACycleSimulation( x, material, type, N ) ; % 用于模拟PSA循环的函数
 
 options         = nsgaopt() ;                            % 创建默认选项结构体
-options.popsize = 45        ;                            % 种群大小
+options.popsize = 9        ;                            % 种群大小
 options.maxGen  = 60        ;                            % 最大代数
 
 options.vartype    = [1, 1, 1, 1, 1, 1, 1, 1, 1]         ;
