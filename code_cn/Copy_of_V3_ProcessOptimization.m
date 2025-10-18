@@ -28,7 +28,7 @@ material    = {}                 ;
 material{1} = material_propertry ;
 material{2} = IsothermParams     ;
 
-Function = @(x) V4_PSACycleSimulation( x, material, type, N ) ; % 用于模拟PSA循环的函数
+Function = @(x) V3_PSACycleSimulation( x, material, type, N ) ; % 用于模拟PSA循环的函数
 
 options         = nsgaopt() ;                            % 创建默认选项结构体
 options.popsize = 9        ;                            % 种群大小

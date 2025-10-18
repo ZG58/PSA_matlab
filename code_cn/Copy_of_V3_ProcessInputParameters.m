@@ -1,4 +1,4 @@
-function InputParams = V4_ProcessInputParameters(process_vars, material, N)
+function InputParams = V3_ProcessInputParameters(process_vars, material, N)
 %InputParameters: 指定PSA模拟的输入参数
 %   有限体积数始终是调用脚本/
 %   函数的输入。此外，x 用于允许从调用脚本/
@@ -29,8 +29,7 @@ function InputParams = V4_ProcessInputParameters(process_vars, material, N)
     % t_CnCdepres = 30                    ;   % 最大/逆流降压步骤时间 [s]
     % t_CoCdepres = 70                    ;   % 最大/并流降压步骤时间 [s]
     t_LR        = t_ads                 ;   % 轻组分回流步骤时间 [s]
-    t_HR1       = t_LR                 ;   % 轻组分回流步骤时间 [s]
-    t_HR2       = t_CnCdepres                  ;   % 重组分回流步骤时间 [s]
+    t_HR        = t_CnCdepres                  ;   % 重组分回流步骤时间 [s]
     tau         = 0.5                   ;   % 用于确定压力变化速度的参数
     P_inlet     = 1.02                  ;   % 吸附步骤入口处的进料气压力
     
@@ -75,7 +74,7 @@ function InputParams = V4_ProcessInputParameters(process_vars, material, N)
     
     
 %% 将值分配给必要的变量
-    Params     = zeros(42, 1) ;
+    Params     = zeros(39, 1) ;
     Params(1)  = N			  ;
     Params(2)  = deltaU(1)    ;
     Params(3)  = deltaU(2)    ;
@@ -111,14 +110,12 @@ function InputParams = V4_ProcessInputParameters(process_vars, material, N)
     Params(30) = alpha    	  ;
     Params(31) = beta         ;
     Params(32) = P_I          ;
-    
     Params(33) = y_0          ;   % 逆流降压出口y的位置 = 重组分回流入品y: y_HP
                                   % y_HR = y_0 - 重组分回流步骤中入口CO2摩尔分数的初始猜测值
     Params(34) = T_0          ;   % 逆流降压出口T的位置 = 重组分回流入品T: T_HP
                                   % T_HR = T_0 - 重组分回流步骤中入口温度的初始猜测值
     Params(35) = ndot_0*beta  ;   % 300/30   % 逆流降压出口ndot的位置 = 重组分回流入品ndot
                                   % ndot_HR = ndot_0*beta - 重组分回流步骤中入口ndot的初始猜测值
-
     Params(36) = 0.01    	  ;   % 吸附出口y的位置 = 并流加压入口y: y_LP
                                   % y_LR = 0.01 - 并流加压步骤中入口CO2摩尔分数的初始猜测值
     Params(37) = T_0    	  ;   % 吸附出口T的位置 = 并流加压入口T: T_LP
@@ -126,13 +123,6 @@ function InputParams = V4_ProcessInputParameters(process_vars, material, N)
     Params(38) = ndot_0  	  ;   % 吸附出口ndot的位置 = 并流加压入口ndot
                                   % 注意: 未使用，似乎非必需。 ndot_LR = ndot_0 - 
                                   % 并流加压步骤中入口ndot的初始猜测值
-
-    Params(39) = y_0          ;   % 逆流降压出口y的位置 = 重组分回流入品y: y_HP
-                                  % y_HR = y_0 - 重组分回流步骤中入口CO2摩尔分数的初始猜测值
-    Params(40) = T_0          ;   % 逆流降压出口T的位置 = 重组分回流入品T: T_HP
-                                  % T_HR = T_0 - 重组分回流步骤中入口温度的初始猜测值
-    Params(41) = ndot_0*beta  ;   % 300/30   % 逆流降压出口ndot的位置 = 重组分回流入品ndot
-                                  % ndot_HR = ndot_0*beta - 重组分回流步骤中入口ndot的初始猜测值
     
     if strcmpi(feed_gas, 'Constant Pressure') == 1
         Params(end) = 1 ;
@@ -142,7 +132,7 @@ function InputParams = V4_ProcessInputParameters(process_vars, material, N)
         error('请指定进料步骤的入口速度或压力是否恒定')
     end
 	
-    Times          = [ t_pres; t_ads; t_HR1; t_CoCdepres; t_HR2; t_CnCdepres; t_LR ] ;
+    Times          = [ t_pres; t_ads; t_CnCdepres; t_LR; t_CoCdepres; t_HR ] ;
  
     IsothermParams = [q_s_b, q_s_d, b, d, deltaU_b, deltaU_d, IsothermPar(13)] ;
 %   
@@ -157,7 +147,7 @@ function InputParams = V4_ProcessInputParameters(process_vars, material, N)
     CEPCI                                 = 536.4        ;   % 当年月份的CEPCI（2016年1月）。
     
     % 根据要模拟的循环更改此项
-    cycle_time = t_pres + t_ads + t_HR2 + t_CoCdepres + t_CnCdepres + t_LR ;   % 1个循环所需的总时间 [s]
+    cycle_time = t_pres + t_ads + t_HR + t_CoCdepres + t_CnCdepres + t_LR ;   % 1个循环所需的总时间 [s]
     
     EconomicParams    = zeros(6, 1)              ;
     EconomicParams(1) = desired_flow             ;
