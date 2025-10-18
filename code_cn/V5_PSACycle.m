@@ -1,101 +1,4 @@
-function  [objectives, constraints, a, b, c, d, e, f, g, t1, t2, t3, t4, t5, t6, t7] = V4_PSACycle(vars, material, x0, type, N, it_disp)
-%Skarstrom: 模拟一个五步改进型Skarstrom变压吸附循环
-%   本函数能够模拟一个五步改进型Skarstrom变压吸附循环，
-%   并提供状态变量和过程目标。由于通量计算具有内在的
-%   质量和能量守恒特性，因此使用有限体积法（FVM）计算导数。
-%   FVM设置的示例如下，其中包含了体积单元的排序
-%   
-%   如下所示的吸附塔分段示意图，带有相应的
-%   入口和出口标识。N是用户在下面定义的值
-%   
-%   入口                                                     出口
-%      -------------------------------\    \----------------------
-%       1   |   2   |   3   |   4   |           N|   N+1   |   N+2
-%      --------------------------------\    \---------------------
-%   
-%   输入:
-%   vars: 过程变量，顺序为：塔长[m]，
-%         吸附压力[Pa]，入口摩尔通量[mol/s/m^2]，
-%         吸附步骤时间[s]，轻组分产品回流比[-]，重组分产品
-%         回流比[-]，以及中间压力。并非所有
-%         这些变量都用于所有循环，因此当模拟的循环
-%         没有与"vars"相关的步骤时，将这些值赋为零。这些
-%         变量作为设计变量输入，可以
-%         更改以进行优化。
-%   
-%   x0  : 塔内状态变量的初始分布，非必需参数
-%   N   : 有限体积单元的数量，非必需参数
-%   
-%   it_disp: 该参数告诉程序是否显示循环次数
-%         以及循环稳态（CSS）值。此项自动设置为"no"以
-%         加快计算速度。
-%   
-%   输出:
-%   输出变量可以根据目的进行定制。这里
-%   有两种情况：
-%   1) 优化：需要获取"objectives"变量：
-%      该变量提供CO2的纯度和回收率。以及约束条件"constraints"：
-%      提供约束是否被违反。有
-%      一些约束需要满足。首先，
-%      过程的回收率必须超过90%。其次，最终产品的纯度
-%      必须高于进料流。
-%   
-%      a-e: 这五个步骤的状态变量：
-%      并流加压、吸附、重组分回流、逆流降压和
-%      轻组分回流。
-%      矩阵的设置方式是，每一行包含
-%      某一时刻所有状态变量的值，每一列包含
-%      整个步骤中单个位置上单个状态变量的
-%      值。如上图所示，对于每个状态变量，
-%      有N个体积单元，其中心值是已知的。
-%      此外，为了计算纯度和回收率，还提供了
-%      塔两端的状态变量值。注意：由于
-%      固体负载量方程中没有空间导数，并且
-%      纯度和回收率不需要这些值，因此假定它们
-%      等于相邻体积单元的值。状态变量的顺序
-%      如下：
-%   
-%      a-e(:, 1:N+2) 是无量纲压力。要获得
-%      真实压力，需将无量纲压力乘以吸附
-%      压力 P_0 或 P_H。
-%      a-e(:,  N+3:2*N+4) 是CO2气体摩尔分数
-%      a-e(:, 2*N+5:3*N+6) 是无量纲CO2摩尔负载量。要
-%      获得真实摩尔负载量，需将无量纲摩尔
-%      负载量乘以摩尔负载量比例因子 q_s
-%      a-e(:, 3*N+7:4*N+8) 是无量纲N2摩尔负载量。要
-%      获得真实摩尔负载量，需将无量纲摩尔
-%      负载量乘以摩尔负载量比例因子 q_s
-%      a-e(:, 4*N+9:5*N+10) 是无量纲塔温。要
-%      获得真实塔温，需将塔温
-%      乘以进料温度 T_0
-%   
-%      t1-t5 是五个步骤的无量纲时间。要
-%      获得真实时间，需将无量纲时间乘以
-%      长度与速度比例因子的比值 (L/v_0)
-%   
-%   2) 用于ANN训练的数据收集：为了获得适合
-%      训练PSA循环各步骤人工神经网络（ANN）的输出，
-%      有必要收集变量的初始和最终状态，
-%      并将其存储在适当的变量中，以供ANN工具箱使用。
-%      这些变量是：a_fin, b_fin, c_fin, d_fin, e_fin, a_in, b_in,
-%      c_in, d_in, e_in。
-%      其中 fin 表示最终状态，in 表示初始状态。
-%   
-%   作出了以下假设：
-%   1) 使用理想气体定律描述气相
-%   2) 径向或方位角方向上没有浓度、压力或温度梯度
-%   3) 使用线性驱动力模型（LDF）描述气体向
-%      吸附剂中的扩散
-%   4) 吸附剂属性和空隙率在整个
-%      塔中保持恒定
-%   5) 气体粘度与压力无关
-%   6) 吸附剂与气相之间处于热平衡状态
-%   7) 使用Ergun方程描述床层的压降
-%   8) 塔在绝热条件下操作，因此必须使用
-%      任何壁面能量平衡
-%   9) 使用轴向弥散活塞流模型表示主体流体
-%      流动
-%   
+function  [objectives, constraints, a, b, c, d, f, g, t1, t2, t3, t4, t6, t7] = V5_PSACycle(vars, material, x0, type, N, it_disp) 
 %% 检查输入数量
 %   如果没有为迭代变量赋值，则为'no'。如果没有为
 %   N赋值，则为10。如果没有为x赋值，则为空。
@@ -124,13 +27,12 @@ function  [objectives, constraints, a, b, c, d, e, f, g, t1, t2, t3, t4, t5, t6,
     objectives  = [0, 0]    ;
     
     % 输入参数
-    InputParams     = V4_ProcessInputParameters(vars, material, N) ;
+    InputParams     = V5_ProcessInputParameters(vars, material, N) ;
     Params          = InputParams{1}                  ;
     IsothermParams  = InputParams{2}                  ;
     Times           = InputParams{3}                  ;
     EconomicParams  = InputParams{4}                  ;
-%     economic_class  = InputParams{5}                  ;
-    
+
     % 检索过程参数
     N				= Params(1)	      ;
     ro_s			= Params(4)	      ;
@@ -154,35 +56,27 @@ function  [objectives, constraints, a, b, c, d, e, f, g, t1, t2, t3, t4, t5, t6,
     y_HR1            = Params(33)      ;
     T_HR1            = Params(34)      ;
     ndot_HR1         = Params(35)	  ;
-    y_HR2            = Params(39)      ;
-    T_HR2            = Params(40)      ;
-    ndot_HR2         = Params(41)	  ;
-    P_I				=	Params(32)	;
-
     
     % 调用PSA循环函数
     CoCPressurization_fxn   = @(t, x) FuncCoCPressurization(t, x, Params, IsothermParams)   ;
     Adsorption_fxn          = @(t, x) FuncAdsorption(t, x, Params, IsothermParams)          ;
-    HeavyReflux1_fxn         = @(t, x) FuncHeavyReflux(t, x, Params, IsothermParams)         ;
+    HeavyReflux1_fxn         = @(t, x) FuncHeavyReflux1(t, x, Params, IsothermParams)         ;
     CoCDepressurization_fxn = @(t, x) FuncCoCDepressurization(t, x, Params, IsothermParams) ;
-    HeavyReflux2_fxn         = @(t, x) FuncHeavyReflux2(t, x, Params, IsothermParams)         ;
     CnCDepressurization_fxn = @(t, x) FuncCnCDepressurization(t, x, Params, IsothermParams) ;
     
     % 检索PSA各步骤的时间
     t_CoCPres   = Times(1) ;
     t_ads       = Times(2) ;
-    t_HR1        = Times(3) ;
-    t_CoCDepres = Times(4) ;
-    t_HR2        = Times(5) ;
-    t_CnCDepres = Times(6) ;
-    t_LR        = Times(7) ;
+    t_HR1        = Times(6) ;
+    t_CoCDepres = Times(5) ;
+    t_CnCDepres = Times(3) ;
+    t_LR        = Times(4) ;
     
     % 无量纲时间
     tau_CoCPres   = t_CoCPres*v_0/L   ;
     tau_ads       = t_ads*v_0/L       ;
     tau_HR1        = t_HR1*v_0/L        ;
     tau_CoCDepres = t_CoCDepres*v_0/L ;
-    tau_HR2        = t_HR2*v_0/L        ;
     tau_CnCDepres = t_CnCDepres*v_0/L ;
     tau_LR        = t_LR*v_0/L        ;
     
@@ -197,19 +91,12 @@ function  [objectives, constraints, a, b, c, d, e, f, g, t1, t2, t3, t4, t5, t6,
         x0(3*N+7:4*N+8)  = q(2)/q_s0       ;
         x0(4*N+9)        = 1               ;
         x0(4*N+10:5*N+10)= 298.15/T_0      ;
-    end 
-    
-%     opts1 = odeset( 'RelTol', 1e-6) ;
-%     opts2 = odeset( 'RelTol', 1e-6) ;
-%     opts3 = odeset( 'RelTol', 1e-6) ;
-%     opts4 = odeset( 'RelTol', 1e-6) ;
-%     opts5 = odeset( 'RelTol', 1e-6) ;
+    end     
     
     opts1 = odeset( 'JPattern', JacPressurization(N), 'RelTol', 1e-6)       ;
     opts2 = odeset( 'JPattern', JacAdsorption(N), 'RelTol', 1e-6)           ;
-    opts3 = odeset( 'JPattern', JacAdsorption(N), 'RelTol', 1e-6)           ;
+    opts3 = odeset( 'JPattern', JacAdsorption(N), 'RelTol', 1e-6)           ;  
     opts4 = odeset( 'RelTol', 1e-6) ;
-    opts5 = odeset( 'JPattern', JacAdsorption(N), 'RelTol', 1e-6)           ;
     opts6 = odeset( 'JPattern', Jac_CnCDepressurization(N), 'RelTol', 1e-6) ;
     opts7 = odeset( 'JPattern', Jac_LightReflux(N), 'RelTol', 1e-6)         ;
 %   
@@ -224,7 +111,6 @@ function  [objectives, constraints, a, b, c, d, e, f, g, t1, t2, t3, t4, t5, t6,
     b_in  = [] ;
     c_in  = [] ;
     d_in  = [] ;
-    e_in  = [] ;
     f_in  = [] ;
     g_in  = [] ;
 
@@ -232,9 +118,9 @@ function  [objectives, constraints, a, b, c, d, e, f, g, t1, t2, t3, t4, t5, t6,
     b_fin = [] ;
     c_fin = [] ;
     d_fin = [] ;
-    e_fin = [] ;
-    f_fin = [] ; 
+    f_fin = [] ;
     g_fin = [] ;
+
     
 if constraints(1) == 0
     
@@ -252,7 +138,6 @@ if constraints(1) == 0
         a(idx ,1)       = a(idx, 2)                       ;  % P_1  = P_2
         a(idx, N+3)     = a(idx, N+4)                     ;  % y_1  = y_2
         a(idx, 4*N+9)   = a(idx, 4*N+10)                  ;  % T_1  = T_2
-
         a(:, 2*N+5)     = a(:, 2*N+6)                     ;  % x1_1 = x1_2
         a(:, 3*N+7)     = a(:, 3*N+8)                     ;  % x2_1 = x2_2
         a(:, 3*N+6)     = a(:, 3*N+5)                     ;  % x1_N+2 = x1_N+1
@@ -261,11 +146,11 @@ if constraints(1) == 0
         
         % 存储并流加压步骤的最终条件 - 所有迭代
         % 以及塔前、后端处的CO2和总摩尔数
-        [totalFront, CO2Front, ~, vFront] = StreamCompositionCalculator(t1*L/v_0, a, 'HPEnd') ;
-        [totalEnd, CO2End, ~, vEnd]     = StreamCompositionCalculator(t1*L/v_0, a, 'LPEnd') ;
+        [totalFront, CO2Front, ~] = StreamCompositionCalculator(t1*L/v_0, a, 'HPEnd') ;
+        [totalEnd, CO2End, ~]     = StreamCompositionCalculator(t1*L/v_0, a, 'LPEnd') ;
         a_fin = [a_fin; a(end, :), CO2Front, totalFront, CO2End, totalEnd]            ;
 
-        fprintf('并流加压步骤totalFront = %.6f, totalEnd = %.6f\n', totalFront, totalEnd);
+        fprintf('加压步骤totalFront = %.6f, totalEnd = %.6f\n', totalFront, totalEnd);
 
         
         % 为吸附步骤准备初始条件
@@ -290,7 +175,6 @@ if constraints(1) == 0
         % 修正输出（清理模拟结果）
         idx             = find(b(:, N+1) < 1)             ;  % P_N+1 < 1 = P_N+2
         b(idx, N+2)     = b(idx, N+1)                     ;  % P_N+2 = P_N+1
-
         b(:, 2*N+5)     = b(:, 2*N+6)                     ;  % x1_1 = x1_2
         b(:, 3*N+7)     = b(:, 3*N+8)                     ;  % x2_1 = x2_2
         b(:, 3*N+6)     = b(:, 3*N+5)                     ;  % x1_N+2 = x1_N+1
@@ -304,8 +188,8 @@ if constraints(1) == 0
         
         % 存储吸附步骤的最终条件 - 所有迭代
         % 以及塔前、后端处的CO2和总摩尔数
-        [totalFront, CO2Front, ~, vFront] = StreamCompositionCalculator(t2*L/v_0, b, 'HPEnd') ;
-        [totalEnd, CO2End, TEnd, vEnd]  = StreamCompositionCalculator(t2*L/v_0, b, 'LPEnd') ;
+        [totalFront, CO2Front, ~] = StreamCompositionCalculator(t2*L/v_0, b, 'HPEnd') ;
+        [totalEnd, CO2End, TEnd]  = StreamCompositionCalculator(t2*L/v_0, b, 'LPEnd') ;
         b_fin = [b_fin; b(end, :), CO2Front, totalFront, CO2End, totalEnd]            ;
 
         fprintf('吸附步骤totalFront = %.6f, totalEnd = %.6f\n', totalFront, totalEnd);
@@ -330,15 +214,15 @@ if constraints(1) == 0
         x20(1)      = P_inlet    ;  % BC z=0 P: P_1   = P_inlet
         x20(1)      = x20(2)     ;   
         x20(N+2)    = 1          ;  % BC z=1 P: P_N+2 = 1
-        x20(N+3)    = y_HR1       ;  % BC z=0 y: y_1   = y_HR
+        x20(N+3)    = y_HR1       ;  % BC z=0 y: y_1   = y_HR1
         x20(2*N+4)  = x20(2*N+3) ;  % BC z=1 y: y_N+2 = y_N+1
-        x20(4*N+9)  = T_HR1/T_0   ;  % BC z=0 T: T_1   = T_HR/T_0
+        x20(4*N+9)  = T_HR1/T_0   ;  % BC z=0 T: T_1   = T_HR1/T_0
         x20(5*N+10) = x20(5*N+9) ;  % BC z=1 T: T_N+2 = T_N+1
         
         % 存储重组分回流步骤的初始条件 - 所有迭代
         c_in = [c_in; x20'] ;
 %       
-    %% 3. 模拟重组分回流1步骤
+    %% 3. 模拟重组分回流步骤
         [t3, c] = ode15s(HeavyReflux1_fxn, [0 tau_HR1], x20, opts3) ;
         
         % 修正输出（清理模拟结果）
@@ -357,11 +241,11 @@ if constraints(1) == 0
         
         % 存储重组分回流步骤的最终条件 - 所有迭代
         % 以及塔前、后端处的CO2和总摩尔数
-        [totalFront, CO2Front, ~, vFront] = StreamCompositionCalculator(t3*L/v_0, c, 'HPEnd') ;
-        [totalEnd, CO2End, ~, vEnd]     = StreamCompositionCalculator(t3*L/v_0, c, 'LPEnd') ;
+        [totalFront, CO2Front, ~] = StreamCompositionCalculator(t3*L/v_0, c, 'HPEnd') ;
+        [totalEnd, CO2End, ~]     = StreamCompositionCalculator(t3*L/v_0, c, 'LPEnd') ;
         c_fin = [c_fin; c(end, :), CO2Front, totalFront, CO2End, totalEnd]            ;
 
-        fprintf('重组分回流1步骤totalFront = %.6f, totalEnd = %.6f\n', totalFront, totalEnd);
+        fprintf('重回流 totalFront = %.6f, totalEnd = %.6f\n', totalFront, totalEnd);
 
         
         % 为并流降压步骤准备初始条件
@@ -391,55 +275,15 @@ if constraints(1) == 0
         
         % 存储逆流降压步骤的最终条件 - 所有迭代
         % 以及塔前、后端处的CO2和总摩尔数
-        [totalFront, CO2Front, ~, vFront] = StreamCompositionCalculator(t4*L/v_0, d, 'HPEnd') ;
-        [totalEnd, CO2End, ~, vEnd]     = StreamCompositionCalculator(t4*L/v_0, d, 'LPEnd') ;
+        [totalFront, CO2Front, ~] = StreamCompositionCalculator(t4*L/v_0, d, 'HPEnd') ;
+        [totalEnd, CO2End, ~]     = StreamCompositionCalculator(t4*L/v_0, d, 'LPEnd') ;
         d_fin = [d_fin; d(end, :), CO2Front, totalFront, CO2End, totalEnd]            ;
 
-        fprintf('并流降压步骤totalFront = %.6f, totalEnd = %.6f\n', totalFront, totalEnd);
-
+        fprintf('并流降压totalFront = %.6f, totalEnd = %.6f\n', totalFront, totalEnd);
 
            
-        % 为重组分回流步骤准备初始条件
-        x40         = d(end, :)' ;  % 上一步的最终状态是
-                                    % 当前步骤的初始状态
-        x40(1)      = x40(2)     ;   
-        x40(N+2)    = P_inlet/P_0         ;  % BC z=1 P: P_N+2 = 1
-        x40(N+3)    = y_HR2       ;  % BC z=0 y: y_1   = y_HR
-        x40(2*N+4)  = x40(2*N+3) ;  % BC z=1 y: y_N+2 = y_N+1
-        x40(4*N+9)  = T_HR2/T_0   ;  % BC z=0 T: T_1   = T_HR/T_0
-        x40(5*N+10) = x40(5*N+9) ;  % BC z=1 T: T_N+2 = T_N+1
-        
-        % 存储重组分回流步骤的初始条件 - 所有迭代
-        e_in = [e_in; x40'] ;
-%
-    %% 5. 模拟重组分回流2步骤
-        [t5, e] = ode15s(HeavyReflux2_fxn, [0 tau_HR2], x40, opts5) ;
-        
-        % 修正输出（清理模拟结果）
-        idx             = find(e(:, N+1) < 1)             ;  % P_N+1 < 1 = P_N+2
-        e(idx, N+2)     = e(idx, N+1)                     ;  % P_N+2 = P_N+1
-        e(:, 2*N+5)     = e(:, 2*N+6)                     ;  % x1_1 = x1_2
-        e(:, 3*N+7)     = e(:, 3*N+8)                     ;  % x2_1 = x2_2
-        e(:, 3*N+6)     = e(:, 3*N+5)                     ;  % x1_N+2 = x1_N+1
-        e(:, 4*N+8)     = e(:, 4*N+7)                     ;  % x2_N+2 = x2_N+1
-        e(:, N+3:2*N+4) = max(min(e(:, N+3:2*N+4), 1), 0) ;  % 0 <= y => 1
-        
-        if Params(end) == 0
-            e = VelocityCorrection(e, ndot_HR2, 'HPEnd') ;
-            %e = velocitycleanup(c)                      ;
-        end
-        
-        % 存储重组分回流步骤的最终条件 - 所有迭代
-        % 以及塔前、后端处的CO2和总摩尔数
-        [totalFront, CO2Front, ~, vFront] = StreamCompositionCalculator(t5*L/v_0, e, 'HPEnd') ;
-        [totalEnd, CO2End, ~, vEnd]     = StreamCompositionCalculator(t5*L/v_0, e, 'LPEnd') ;
-        e_fin = [e_fin; e(end, :), CO2Front, totalFront, CO2End, totalEnd]            ;
-
-        fprintf('重组分回流2步骤totalFront = %.6f, totalEnd = %.6f\n', totalFront, totalEnd);
-
-        
-        % 为并流降压步骤准备初始条件
-        x50         = e(end,:)'   ;   % 上一步的最终状态是
+        % 为逆流降压步骤准备初始条件
+        x50         = d(end,:)'   ;   % 上一步的最终状态是
                                       % 当前步骤的初始状态
         x50(1)      = x50(2)      ;   % BC z=0 P: P_1   = P_2
         x50(N+2)    = x50(N+1)    ;   % BC z=1 P: P_N+2 = P_N+1
@@ -448,10 +292,10 @@ if constraints(1) == 0
         x50(4*N+9)  = x50(4*N+10) ;   % BC z=0 T: T_1   = T_2
         x50(5*N+10) = x50(5*N+9)  ;   % BC z=1 T: T_N+2 = T_N+1
         
-        % 存储并流降压步骤的初始条件 - 所有迭代
+        % 存储轻组分回流步骤的初始条件 - 所有迭代
         f_in = [f_in; x50'] ;
 % 
-    %% 6. 模拟逆流降压步骤
+    %% 5. 模拟逆流降压步骤
         [t6, f] = ode15s(CnCDepressurization_fxn, [0 tau_CnCDepres], x50, opts6) ;
         
         % 修正输出（清理模拟结果）
@@ -465,28 +309,27 @@ if constraints(1) == 0
         
         % 存储逆流降压步骤的最终条件 - 所有迭代
         % 以及塔前、后端处的CO2和总摩尔数
-        [totalFront, CO2Front, TFront, vFront] = StreamCompositionCalculator(t6*L/v_0, f, 'HPEnd') ;
-        [totalEnd, CO2End, ~, vEnd]     = StreamCompositionCalculator(t6*L/v_0, f, 'LPEnd') ;
+        [totalFront, CO2Front, TFront] = StreamCompositionCalculator(t6*L/v_0, f, 'HPEnd') ;
+        [totalEnd, CO2End, ~]     = StreamCompositionCalculator(t6*L/v_0, f, 'LPEnd') ;
         f_fin = [f_fin; f(end, :), CO2Front, totalFront, CO2End, totalEnd]            ;
 
-        fprintf('逆流降压步骤totalFront = %.6f, totalEnd = %.6f\n', totalFront, totalEnd);
+        fprintf('逆流降压totalFront = %.6f, totalEnd = %.6f\n', totalFront, totalEnd);
 
+        % % 计算重组分回流步骤所需的参数
+        % y_HR2       = CO2Front/totalFront    ;
+        % T_HR2       = TFront                 ;
+        % ndot_HR1    = totalFront.*beta/t_HR2  ;
+        % Params(39) = y_HR2                   ;
+        % Params(40) = T_HR2                   ;
+        % Params(41) = ndot_HR2                ;
+        % 
+        % HeavyReflux2_fxn = @(t, x) FuncHeavyReflux2(t, x, Params, IsothermParams) ;
 
-        % 计算重组分回流步骤所需的参数
-        y_HR2       = CO2Front/totalFront    ;
-        T_HR2       = TFront                 ;
-        ndot_HR2    = totalFront.*beta/t_HR2  ;
-        Params(39) = y_HR2                   ;
-        Params(40) = T_HR2                   ;
-        Params(41) = ndot_HR2                ;
-        
-        HeavyReflux2_fxn = @(t, x) FuncHeavyReflux2(t, x, Params, IsothermParams) ;
         
         % 为轻组分回流步骤准备初始条件
         x60         = f(end,:)'    ;  % 上一步的最终状态是
                                       % 当前步骤的初始状态
         x60(1)      = P_l/P_0      ;  % BC z=0 P: P_1   = P_l/P_0
-        %x50(N+2)    = 2*P_l/P_0    ;  % BC z=1 P: P_N+2 = 2*P_l/P_0 % 注意：注意这里的alpha，在另一侧代码中只是2
         x60(N+3)    = x60(N+4)     ;  % BC z=0 y: y_1   = y_2
         x60(2*N+4)  = y_LR         ;  % BC z=1 y: y_N+2 = y_LR
         x60(4*N+9)  = x60(4*N+10)  ;  % BC z=0 T: T_1   = T_2
@@ -495,10 +338,10 @@ if constraints(1) == 0
         % 存储轻组分回流步骤的初始条件 - 所有迭代
         g_in = [g_in; x60'] ;
 %       
-    %% 7. 模拟轻组分回流步骤
+    %% 6. 模拟轻组分回流步骤
         [t7, g] = ode15s(LightReflux_fxn, [0 tau_LR], x60, opts7) ;
         
-        % 修正输出（清理模拟结果）g
+        % 修正输出（清理模拟结果）
         idx             = find(g(:, 2) < g(:, 1))         ;  % P_2  < P_1
         g(idx ,1)       = g(idx, 2)                       ;  % P_1  = P_2
         g(:, 2*N+5)     = g(:, 2*N+6)                     ;  % x1_1 = x1_2
@@ -507,18 +350,17 @@ if constraints(1) == 0
         g(:, 4*N+8)     = g(:, 4*N+7)                     ;  % x2_N+2 = x2_N+1
         g(:, N+3:2*N+4) = max(min(g(:, N+3:2*N+4), 1), 0) ;  % 0 <= y => 1
         
-        g = VelocityCorrection(g, ndot_LR*alpha, 'LPEnd') ;
-        %f = velocitycleanup(f)                            ;
+        g = VelocityCorrection(g, ndot_LR*alpha, 'LPEnd') ;                        
         
         % 存储轻组分回流步骤的最终条件 - 所有迭代
         % 以及塔前、后端处的CO2和总摩尔数
-        [totalFront, CO2Front, TFront, vFront]  = StreamCompositionCalculator(t7*L/v_0, g, 'HPEnd') ;
-        [totalEnd, CO2End, ~, vEnd]           = StreamCompositionCalculator(t7*L/v_0, g, 'LPEnd') ;
+        [totalFront, CO2Front, TFront]  = StreamCompositionCalculator(t7*L/v_0, g, 'HPEnd') ;
+        [totalEnd, CO2End, ~]           = StreamCompositionCalculator(t7*L/v_0, g, 'LPEnd') ;
         g_fin = [g_fin; g(end, :), CO2Front, totalFront, CO2End, totalEnd]                  ;
 
-        fprintf('轻组分回流步骤totalFront = %.6f, totalEnd = %.6f\n', totalFront, totalEnd);
+        fprintf('轻回流 totalFront = %.6f, totalEnd = %.6f\n', totalFront, totalEnd);
 
-        
+
         % 计算重组分回流步骤所需的参数
         y_HR1       = CO2Front/totalFront    ;
         T_HR1       = TFront                 ;
@@ -526,8 +368,9 @@ if constraints(1) == 0
         Params(33) = y_HR1                   ;
         Params(34) = T_HR1                   ;
         Params(35) = ndot_HR1                ;
+        
+        HeavyReflux1_fxn = @(t, x) FuncHeavyReflux1(t, x, Params, IsothermParams) ;
 
-        HeavyReflux1_fxn = @(t, x) FuncHeavyReflux(t, x, Params, IsothermParams) ;
         
         % 为并流加压步骤准备初始条件
         x0         = g(end, :)' ;  % 上一步的最终状态是
@@ -544,47 +387,26 @@ if constraints(1) == 0
 %       
     %% 检查循环稳态（CSS）条件
         
-%         [cyclic_check, cyclic_display] = CCS_Check(a, b, c, d, e, t1, t2, t3, t4, t5) ;
-%         
-%         if strcmpi(it_disp, 'yes') == 1
-%             display([i, cyclic_display]) ;
-%         end
-%         
-%         if cyclic_check == 1
-%             break
-%         end 
         % 状态的CSS条件
         CSS_states = norm(statesIC-statesFC) ;
         % 质量平衡条件
-        [~, ~, massBalance] = ProcessEvaluation(a, b, c, d, e, f, g, t1, t2, t3, t4, t5, t6, t7) ;
+        [~, ~, massBalance] = ProcessEvaluation(a, b, c, d, f, g, t1, t2, t3, t4, t6, t7) ;
         
         % 检查CSS是否已达到
         if CSS_states <= 1e-3 && abs(massBalance-1) <= 0.005
             break
         end
-        % 如果质量平衡不满足但在连续十次迭代中也不再变化，则停止的条件
-        mb(i) = massBalance ;
-        if i > 15
-            if CSS_states <= 1e-3 && abs(massBalance-1) > 0.005
-                stateMB      = mb(end-15+1:end)                      ;
-                %diffStatesMB = stateMB(end:-1:2)-stateMB(end-1:-1:1) ;
-                diffStatesMB = stateMB(end-1:-1:1)-stateMB(end)      ;
-                normStatesMB = norm(diffStatesMB)                    ;
-                if normStatesMB < 1e-5
-                    break
-                end 
-            end 
-        end     
+   
 %       
     end
     
     %% 过程和经济性评估
     
-    [purity, recovery, MB] = ProcessEvaluation(a, b, c, d, e, f, g, t1, t2, t3, t4, t5, t6, t7) ;
+    [purity, recovery, MB] = ProcessEvaluation(a, b, c, d, f, g, t1, t2, t3, t4, t6, t7) ;
     
     desired_flow = EconomicParams(1) ;
     % cycle_time   = EconomicParams(3) ;
-    cycle_time = t_CoCPres + t_ads + t_HR1 + t_CoCDepres + t_HR2 + t_CnCDepres + t_LR       ;
+    cycle_time = t_CoCPres + t_ads + t_HR1 + t_CoCDepres + t_CnCDepres + t_LR       ;
     
     % 计算循环期间供给的烟气量
     [n_tot_pres, ~, ~] = StreamCompositionCalculator(t1*L/v_0, a, 'HPEnd') ;
@@ -601,11 +423,8 @@ if constraints(1) == 0
     % 计算进料步骤所需的能量
     E_feed  = CompressionEnergy(t2*L/v_0, b, 1e5)   ; % kWh
     
-    % 计算重组分回流1步骤所需的能量
+    % 计算重组分回流步骤所需的能量
     E_HR1    = CompressionEnergy(t3*L/v_0, c, 1e5)   ; % kWh
-
-    % 计算重组分回流2步骤所需的能量
-    E_HR2    = CompressionEnergy(t5*L/v_0, e, 1e5)   ; % kWh
     
     % 计算逆流降压步骤所需的能量
     E_bldwn = VacuumEnergy(t6*L/v_0, f, 1e5)        ; % kWh
@@ -614,7 +433,7 @@ if constraints(1) == 0
     E_evac  = VacuumEnergy(t7*L/v_0, g, 1e5)        ; % kWh
     
     % 计算总能量需求
-    energy_per_cycle = E_pres + E_feed + E_HR1 + E_HR2 + E_bldwn + E_evac ; % [kWh / 循环]
+    energy_per_cycle = E_pres + E_feed + E_HR1 + E_bldwn + E_evac ; % [kWh / 循环]
     
     % 计算循环中回收的CO2量 [吨 CO_2 / 循环 和 mol/循环]
     [~, n_CO2_CnCD, ~]   = StreamCompositionCalculator(t6*L/v_0, f, 'HPEnd') ;
@@ -666,20 +485,10 @@ end
         idx_out = [1, 5:5:i, i] ;
     end
     
-%     a_fin = a_fin(idx_out, :)   ;
-%     b_fin = b_fin(idx_out, :)   ;
-%     c_fin = c_fin(idx_out, :)   ;
-%     d_fin = d_fin(idx_out, :)   ;
-%     e_fin = e_fin(idx_out, :)   ;
-%     a_in  = a_in(idx_out, :)    ;
-%     b_in  = b_in(idx_out, :)    ;
-%     c_in  = c_in(idx_out, :)    ;
-%     d_in  = d_in(idx_out, :)    ;
-%     e_in  = e_in(idx_out, :)    ;
 %   
 %% 辅助函数
    
-    function [n_tot, n_CO2, Temp, v] = StreamCompositionCalculator(time, state_vars, ProductEnd)
+    function [n_tot, n_CO2, Temp] = StreamCompositionCalculator(time, state_vars, ProductEnd)
     %MoleStreamCalculator: 计算流组成
     %   计算塔任一端流的组成（CO2摩尔数和总摩尔数）
     %   和温度。
@@ -796,43 +605,31 @@ end
     %   
     %% 计算进出塔的总摩尔数 [mols/m^2]
         
-        [n_tot_CoCPres_HPEnd, n_CO2_CoCPres_HPEnd, ~]                       = StreamCompositionCalculator(tau{1}, step{1}, 'HPEnd') ;
-
-        [n_tot_ads_HPEnd, n_CO2_ads_HPEnd, ~]                           = StreamCompositionCalculator(tau{2}, step{2}, 'HPEnd') ;
-        [n_tot_ads_LPEnd, n_CO2_ads_LPEnd, ~]                           = StreamCompositionCalculator(tau{2}, step{2}, 'LPEnd') ;
-
-        [n_tot_HR1_LPEnd, n_CO2_HR1_LPEnd, ~]                            = StreamCompositionCalculator(tau{3}, step{3}, 'LPEnd') ;
-        [n_tot_HR1_HPEnd, n_CO2_HR1_HPEnd, ~]                            = StreamCompositionCalculator(tau{3}, step{3}, 'HPEnd') ;  
-
-        [n_tot_CoCDepres_LPEnd, n_CO2_CoCDepres_LPEnd, ~]                     = StreamCompositionCalculator(tau{4}, step{4}, 'LPEnd') ;
-
-        [n_tot_HR2_LPEnd, n_CO2_HR2_LPEnd, ~]                            = StreamCompositionCalculator(tau{5}, step{5}, 'LPEnd') ;
-        [n_tot_HR2_HPEnd, n_CO2_HR2_HPEnd, ~]                            = StreamCompositionCalculator(tau{5}, step{5}, 'HPEnd') ;
+        [~, n_CO2_CoCPres_HPEnd, ~]                       = StreamCompositionCalculator(tau{1}, step{1}, 'HPEnd') ;
+        [~, n_CO2_ads_HPEnd, ~]                           = StreamCompositionCalculator(tau{2}, step{2}, 'HPEnd') ;
+        [~, n_CO2_ads_LPEnd, ~]                           = StreamCompositionCalculator(tau{2}, step{2}, 'LPEnd') ;
+        [~, n_CO2_HR1_LPEnd, ~]                            = StreamCompositionCalculator(tau{3}, step{3}, 'LPEnd') ;
+        [~, n_CO2_HR1_HPEnd, ~]                            = StreamCompositionCalculator(tau{3}, step{3}, 'HPEnd') ;
         
-        [n_tot_CnCDepres_HPEnd, n_CO2_CnCDepres_HPEnd, ~] = StreamCompositionCalculator(tau{6}, step{6}, 'HPEnd') ;
+        [~, n_CO2_CoCDepres_LPEnd, ~]                     = StreamCompositionCalculator(tau{4}, step{4}, 'LPEnd') ;
 
-        [n_tot_LR_LPEnd, n_CO2_LR_LPEnd, ~]                            = StreamCompositionCalculator(tau{7}, step{7}, 'LPEnd') ;
-        [n_tot_LR_HPEnd, n_CO2_LR_HPEnd, ~]               = StreamCompositionCalculator(tau{7}, step{7}, 'HPEnd') ;
+        [n_tot_CnCDepres_HPEnd, n_CO2_CnCDepres_HPEnd, ~] = StreamCompositionCalculator(tau{5}, step{5}, 'HPEnd') ;
+        [~, n_CO2_LR_LPEnd, ~]                            = StreamCompositionCalculator(tau{6}, step{6}, 'LPEnd') ;
+        [n_tot_LR_HPEnd, n_CO2_LR_HPEnd, ~]               = StreamCompositionCalculator(tau{6}, step{6}, 'HPEnd') ;
 	%   
     %% 计算塔的纯度、回收率和质量平衡
         
         % purity       = (n_CO2_CnCDepres_HPEnd+(1-beta)*n_CO2_LR_HPEnd)/(n_tot_CnCDepres_HPEnd+(1-beta)*n_tot_LR_HPEnd) ;
         % recovery     = (n_CO2_CnCDepres_HPEnd+(1-beta)*n_CO2_LR_HPEnd)/(n_CO2_CoCPres_HPEnd+n_CO2_ads_HPEnd)           ;
 
-        purity       = ((1-beta)*n_CO2_CnCDepres_HPEnd+(1-beta)*n_CO2_LR_HPEnd)/((1-beta)*n_tot_CnCDepres_HPEnd+(1-beta)*n_tot_LR_HPEnd) ;
-        recovery     = ((1-beta)*n_CO2_CnCDepres_HPEnd+(1-beta)*n_CO2_LR_HPEnd)/(n_CO2_CoCPres_HPEnd+n_CO2_ads_HPEnd)           ;
+        purity       = ((1-beta)*n_CO2_CnCDepres_HPEnd+n_CO2_LR_HPEnd)/((1-beta)*n_tot_CnCDepres_HPEnd+n_tot_LR_HPEnd) ;
+        recovery     = ((1-beta)*n_CO2_CnCDepres_HPEnd+n_CO2_LR_HPEnd)/(n_CO2_CoCPres_HPEnd+n_CO2_ads_HPEnd)           ;
 
         % purity       = n_CO2_CnCDepres_HPEnd/n_tot_CnCDepres_HPEnd ;
         % recovery     = (1-beta)*n_CO2_CnCDepres_HPEnd/(n_CO2_CoCPres_HPEnd+n_CO2_ads_HPEnd);        
         
-        % mass_balance = (n_CO2_CnCDepres_HPEnd+n_CO2_ads_LPEnd+n_CO2_HR1_LPEnd+n_CO2_LR_HPEnd+n_CO2_CoCDepres_LPEnd+n_CO2_HR2_LPEnd)/... 
-        %                (n_CO2_CoCPres_HPEnd+n_CO2_ads_HPEnd+n_CO2_HR1_HPEnd+n_CO2_LR_LPEnd+n_CO2_HR2_HPEnd)                             ;
-
-        % 修复方案
-        total_in = n_tot_CoCPres_HPEnd + n_tot_ads_HPEnd + n_tot_HR1_HPEnd + n_tot_LR_LPEnd + n_tot_HR2_HPEnd;
-        total_out = n_tot_CnCDepres_HPEnd + n_tot_ads_LPEnd + n_tot_HR1_LPEnd + n_tot_LR_HPEnd + n_tot_CoCDepres_LPEnd + n_tot_HR2_LPEnd;
-
-        mass_balance = total_out / total_in;
+        mass_balance = (n_CO2_CnCDepres_HPEnd+n_CO2_ads_LPEnd+n_CO2_HR1_LPEnd+n_CO2_LR_HPEnd+n_CO2_CoCDepres_LPEnd)/... 
+                       (n_CO2_CoCPres_HPEnd+n_CO2_ads_HPEnd+n_CO2_HR1_HPEnd+n_CO2_LR_LPEnd)                             ;
     %   
     end 
     

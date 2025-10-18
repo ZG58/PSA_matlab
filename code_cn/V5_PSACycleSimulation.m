@@ -1,4 +1,4 @@
-function [ objectives, constraints ] = V3_PSACycleSimulation( x, material, type, N)
+function [ objectives, constraints ] = V5_PSACycleSimulation( x, material, type, N)
 
     % % 检索作为函数输入提供的所需过程变量
     % L           = process_vars(1)       ;   % 吸附塔长度 [m]   
@@ -23,7 +23,7 @@ function [ objectives, constraints ] = V3_PSACycleSimulation( x, material, type,
     process_variables = [1.0, x(1), x(1)*x(4)/8.314/313.15,  x(2),  x(3),  x(5), 1e5, x(6), x(7), x(8), x(9)] ;
 	
 	try
-    [objectives, constraints] = V3_PSACycle(process_variables, material, [], type, N) ;
+    [objectives, constraints] = V5_PSACycle(process_variables, material, [], type, N) ;
 	catch
     %warning('函数使用出现问题。为目标和约束违反赋零值');
     objectives(1)  = 1e5 ;

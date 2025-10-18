@@ -1,4 +1,4 @@
-function derivatives = FuncHeavyReflux2(~, state_vars, params, isotherm_params)
+function derivatives = FuncHeavyReflux1(~, state_vars, params, isotherm_params)
 %#codegen
 %重组分回流：计算重组分回流步骤中状态变量的变化
 %   与MATLAB ode求解器（ode15s）结合使用，求解变压吸附（PSA）步骤的偏微分方程组。

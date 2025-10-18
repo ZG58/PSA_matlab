@@ -29,24 +29,11 @@ material{2} = IsothermParams;
 lb = [1e5,  10, 0.01, 0.1, 0, 1e4, 0, 0, 0];      % x 的下界
 ub = [10e5, 1000, 0.99, 2, 1, 5e4, 20, 30, 70];     % x 的上界
 
-% lb = [1e5,  10, 0.01, 0.1, 0, 1e4];      % x 的下界
-% ub = [10e5, 1000, 0.99, 2, 1, 5e4];     % x 的上界
-
 % --- 在循环开始前，一次性完成所有采样 ---
 num_simulations = 1; % 设置您想运行的总仿真次数
 %% 
 
-% fprintf('正在为 %d 次仿真预先生成所有随机样本...\n', num_simulations);
-% % 生成一个 num_simulations x length(lb) 的矩阵
-% % 每一行都是一组独立的随机样本 x
-% X_samples = lb + (ub - lb) .* rand(num_simulations, length(lb));
-% disp('采样完成。');
-
-%% 
-
 X_samples = [220676, 47.902,	0.236211,	0.16219,	0.529994,	10673.4,	15.4153,	17.1233, 70];
-% X_samples = [220676, 50,	0.236211,	0.16219,	0.529994,	10673.4,	3,	3, 2];
-
 
 %% 
 
@@ -66,7 +53,7 @@ for i = 1:num_simulations
     fprintf('--> 正在进行第 %d/%d 次仿真...\n', i, num_simulations);
 
     % 调用仿真函数 (请替换为您的真实函数)
-    [objectives, constraints] = V3_PSACycleSimulation(x, material, type, N);
+    [objectives, constraints] = V5_PSACycleSimulation(x, material, type, N);
     
     % 存储结果
     results_objectives(i, :) = objectives;

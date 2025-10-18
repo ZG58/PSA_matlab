@@ -52,9 +52,9 @@ function derivatives = FuncHeavyReflux2(~, state_vars, params, isotherm_params)
     k_2_LDF		    =	params(22)	;
     
     P_inlet			=	params(26)	;
-    y_HR		    =	params(33)  ;
-    T_HR		    =	params(34)  ;
-    ndot_HR         =   params(35)  ;
+    y_HR		    =	params(39)  ;
+    T_HR		    =	params(40)  ;
+    ndot_HR         =   params(41)  ;
 %   
 %% 初始化状态变量
     P  = zeros(N+2, 1) ;
@@ -176,8 +176,8 @@ function derivatives = FuncHeavyReflux2(~, state_vars, params, isotherm_params)
 %%  
     y(N+2) = y(N+1)     ;
     T(N+2) = T(N+1)     ;
-    if P(N+1) >= 1
-        P(N+2) = 1      ;
+    if P(N+1) >= 0.4
+        P(N+2) = 0.4      ;
     else
         P(N+2) = P(N+1) ;
     end
