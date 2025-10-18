@@ -544,15 +544,6 @@ if constraints(1) == 0
 %       
     %% 检查循环稳态（CSS）条件
         
-%         [cyclic_check, cyclic_display] = CCS_Check(a, b, c, d, e, t1, t2, t3, t4, t5) ;
-%         
-%         if strcmpi(it_disp, 'yes') == 1
-%             display([i, cyclic_display]) ;
-%         end
-%         
-%         if cyclic_check == 1
-%             break
-%         end 
         % 状态的CSS条件
         CSS_states = norm(statesIC-statesFC) ;
         % 质量平衡条件
@@ -561,20 +552,7 @@ if constraints(1) == 0
         % 检查CSS是否已达到
         if CSS_states <= 1e-3 && abs(massBalance-1) <= 0.005
             break
-        end
-        % 如果质量平衡不满足但在连续十次迭代中也不再变化，则停止的条件
-        mb(i) = massBalance ;
-        if i > 15
-            if CSS_states <= 1e-3 && abs(massBalance-1) > 0.005
-                stateMB      = mb(end-15+1:end)                      ;
-                %diffStatesMB = stateMB(end:-1:2)-stateMB(end-1:-1:1) ;
-                diffStatesMB = stateMB(end-1:-1:1)-stateMB(end)      ;
-                normStatesMB = norm(diffStatesMB)                    ;
-                if normStatesMB < 1e-5
-                    break
-                end 
-            end 
-        end     
+        end 
 %       
     end
     
@@ -825,14 +803,14 @@ end
         % purity       = n_CO2_CnCDepres_HPEnd/n_tot_CnCDepres_HPEnd ;
         % recovery     = (1-beta)*n_CO2_CnCDepres_HPEnd/(n_CO2_CoCPres_HPEnd+n_CO2_ads_HPEnd);        
         
-        % mass_balance = (n_CO2_CnCDepres_HPEnd+n_CO2_ads_LPEnd+n_CO2_HR1_LPEnd+n_CO2_LR_HPEnd+n_CO2_CoCDepres_LPEnd+n_CO2_HR2_LPEnd)/... 
-        %                (n_CO2_CoCPres_HPEnd+n_CO2_ads_HPEnd+n_CO2_HR1_HPEnd+n_CO2_LR_LPEnd+n_CO2_HR2_HPEnd)                             ;
+        mass_balance = (n_CO2_CnCDepres_HPEnd+n_CO2_ads_LPEnd+n_CO2_HR1_LPEnd+n_CO2_LR_HPEnd+n_CO2_CoCDepres_LPEnd+n_CO2_HR2_LPEnd)/... 
+                       (n_CO2_CoCPres_HPEnd+n_CO2_ads_HPEnd+n_CO2_HR1_HPEnd+n_CO2_LR_LPEnd+n_CO2_HR2_HPEnd)                             ;
 
-        % 修复方案
-        total_in = n_tot_CoCPres_HPEnd + n_tot_ads_HPEnd + n_tot_HR1_HPEnd + n_tot_LR_LPEnd + n_tot_HR2_HPEnd;
-        total_out = n_tot_CnCDepres_HPEnd + n_tot_ads_LPEnd + n_tot_HR1_LPEnd + n_tot_LR_HPEnd + n_tot_CoCDepres_LPEnd + n_tot_HR2_LPEnd;
-
-        mass_balance = total_out / total_in;
+        % % 修复方案
+        % total_in = n_tot_CoCPres_HPEnd + n_tot_ads_HPEnd + n_tot_HR1_HPEnd + n_tot_LR_LPEnd + n_tot_HR2_HPEnd;
+        % total_out = n_tot_CnCDepres_HPEnd + n_tot_ads_LPEnd + n_tot_HR1_LPEnd + n_tot_LR_HPEnd + n_tot_CoCDepres_LPEnd + n_tot_HR2_LPEnd;
+        % 
+        % mass_balance = total_out / total_in;
     %   
     end 
     

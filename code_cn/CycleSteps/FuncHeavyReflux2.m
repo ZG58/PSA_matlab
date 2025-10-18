@@ -52,9 +52,9 @@ function derivatives = FuncHeavyReflux2(~, state_vars, params, isotherm_params)
     k_2_LDF		    =	params(22)	;
     
     P_inlet			=	params(26)	;
-    y_HR		    =	params(33)  ;
-    T_HR		    =	params(34)  ;
-    ndot_HR         =   params(35)  ;
+    y_HR2		    =	params(39)  ;
+    T_HR2		    =	params(40)  ;
+    ndot_HR2         =   params(41)  ;
 %   
 %% 初始化状态变量
     P  = zeros(N+2, 1) ;
@@ -133,8 +133,8 @@ function derivatives = FuncHeavyReflux2(~, state_vars, params, isotherm_params)
 %   或者将入口速度设置为常数，此时压力会发生变化以
 %   满足入口处的速度约束。
     
-    y(1) = y_HR     ;
-    T(1) = T_HR/T_0 ;
+    y(1) = y_HR2     ;
+    T(1) = T_HR2/T_0 ;
     
     if params(end) == 1
         % 入口压力被指定为常数
@@ -147,11 +147,11 @@ function derivatives = FuncHeavyReflux2(~, state_vars, params, isotherm_params)
     
         a_1   = 150*mu*(1-epsilon)^2*dz*L/2/4/r_p^2/epsilon^3/T(1)/T_0/R ;
         a_2_1 = 1.75*(1-epsilon)/2/r_p/epsilon/epsilon/epsilon*dz*L/2    ;
-        a_2   = a_2_1/R/T(1)/T_0*ndot_HR*MW                              ;
+        a_2   = a_2_1/R/T(1)/T_0*ndot_HR2*MW                              ;
     
         a =  a_1+a_2             ;
         b =  P(2)/T(1)*P_0/R/T_0 ;
-        c = -ndot_HR             ;
+        c = -ndot_HR2             ;
     
         vh(1) = (-b+sqrt(b^2-4*a*c))/2/a/v_0 ;
     
@@ -176,11 +176,8 @@ function derivatives = FuncHeavyReflux2(~, state_vars, params, isotherm_params)
 %%  
     y(N+2) = y(N+1)     ;
     T(N+2) = T(N+1)     ;
-    if P(N+1) >= 1
-        P(N+2) = 1      ;
-    else
-        P(N+2) = P(N+1) ;
-    end
+    P(N+2) = P_inlet/P_0      ;
+
 %   
 %% 空间导数计算
 %   

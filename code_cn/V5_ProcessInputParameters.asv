@@ -25,6 +25,9 @@ function InputParams = V5_ProcessInputParameters(process_vars, material, N)
     IsothermPar        = material{2}    ; 
     
     % 操作床层参数
+    % t_pres      = 20                    ;   % 最大/加压步骤时间 [s]
+    % t_CnCdepres = 30                    ;   % 最大/逆流降压步骤时间 [s]
+    % t_CoCdepres = 70                    ;   % 最大/并流降压步骤时间 [s]
     t_LR        = t_ads                 ;   % 轻组分回流步骤时间 [s]
     t_HR1        = t_LR                  ;   % 重组分回流步骤时间 [s]
     t_HR2        = t_CnCdepres                  ;   % 重组分回流步骤时间 [s]
